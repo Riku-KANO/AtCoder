@@ -1,5 +1,8 @@
 # Review code for Atcoder
 
 ## Environment
-C++: C++14, GCC  
-Python: 3.9
+C++14,GCC  
+Python3.８
+
+## License
+Free to use for any purposes.
