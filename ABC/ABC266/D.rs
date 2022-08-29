@@ -5,34 +5,39 @@ const MIN: i64 = std::i64::MIN;
 
 fn main() {
     input!{
-        n: usize,
-        txa: [(usize, usize, i64); n],
+        N: usize,
     }
-    let mut x = vec![0; 100_001];
-    let mut a = vec![0; 100_001];
-    for (t, xi, ai) in txa {
-        x[t] = xi;
-        a[t] = ai;
+    let mut snuke = vec![vec![0; 5]; 100_005];
+    let mut Tmax = 0;
+    for _ in 0..N {
+        input! {
+          T: usize, X: usize, A:i64
+        }
+        snuke[T][X] = A;
+        Tmax = max(Tmax, T);
     }
 
-    let mut dp = vec![vec![MIN; 100_001]; 5];
+    let mut dp = vec![vec![MIN; 5]; 100_005];
     dp[0][0] = 0;
-    for t in 1..=100_000 {
+    for t in 0..Tmax+1 {
         for i in 0..5 {
-            dp[i][t] = dp[i][t-1];
+            if dp[t][i] == MIN {continue;}
+            dp[t][i] += snuke[t][i];
+            dp[t+1][i] = max(dp[t+1][i], dp[t][i]);
             if i > 0 {
-                dp[i][t] = max(dp[i][t], dp[i-1][t-1]);
+                dp[t+1][i-1] = max(dp[t+1][i-1], dp[t][i]);
             }
             if i < 4 {
-                dp[i][t] = max(dp[i][t], dp[i+1][t-1]);
+                dp[t+1][i+1] = max(dp[t+1][i+1], dp[t][i]);
             }
         }
-        dp[x[t]][t] += a[t];
     }
 
     let mut ans = 0;
     for i in 0..5 {
-        ans = max(ans, dp[i][100_000]);
+        ans = max(ans, dp[Tmax][i]);
     }
     println!("{}", ans);
+  
+   
 }
