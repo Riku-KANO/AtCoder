@@ -7,11 +7,11 @@ function main(input){
   const INF = -1e20;
   let dp = new Array(2006);
   for(let i = 0; i < 2006; i++) {
-    dp[i] = new Array(2006).fill(-INF);
+    dp[i] = new Array(2006).fill(INF);
   }
   dp[0][0] = 0;
   for(let i = 0; i < n; i++) {
-    for(int let j = 0; j <= i; j++) {
+    for(let j = 0; j <= i; j++) {
       dp[i+1][j] = Math.max(dp[i+1][j], dp[i][j]);
       dp[i+1][j+1] = Math.max(dp[i+1][j+1], dp[i][j] + (j + 1) * a[i]);
     }
