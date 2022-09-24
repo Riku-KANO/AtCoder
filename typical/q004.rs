@@ -3,48 +3,35 @@ use std::{io, fmt::Debug, str::FromStr};
 use std::io::{stdout, Write, stdin};
 use std::collections::{HashMap, HashSet};
 
-fn rec(n: usize, r: usize, mut s: String, v: &mut Vec<String>){
-    // println!("{} {} {} {}", n, r, s, s.len());
-    if s.len() == n {
-        v.push(s);
-    } else {
-        let sz = s.len();
-        if r == n / 2{
-            let sa = &mut s;
-            sa.push(')');
-            rec(n, r, sa.to_string(), v);
-        } else if r == s.len() / 2 {
-            let sa = &mut s;
-            sa.push('(');
-            rec(n, r + 1, sa.to_string(), v);
-        } else {
-            let sa = &mut s;
-            (*sa).push('(');
-            rec(n, r + 1, sa.to_string(), v);
-            sa.pop();
-            let sb = &mut s;
-            (*sb).push(')');
-            rec(n, r, sb.to_string(), v);
-        }
-    }
-}
-
 #[fastout]
 fn main() -> io::Result<()> {
-    input!{
-        n: usize
+    input! {
+        h: usize, w: usize,
+        a: [[i32; w]; h]  
     }
-    if n % 2 == 1 {
-        Ok(())
-    } else {
-        let mut v = Vec::new();
-        rec(n, 0, "".to_string(), &mut v);
-        v.sort();
-        for ans in v {
-            println!("{}", ans);
+    let mut sumh = vec![0; h];
+    let mut sumw = vec![0; w];
+    for i in 0..h {
+        let mut s = 0;
+        for j in 0..w {
+            s += a[i][j];
         }
-        Ok(())
+        sumh[i] = s;
     }
+    for i in 0..w {
+        let mut s = 0;
+        for j in 0..h {
+            s += a[j][i];
+        }
+        sumw[i] = s;
+    }
+    for i in 0..h {
+        for j in 0..w {
+            print!("{} ", sumh[i] + sumw[j] - a[i][j]);
+        }
+        println!();
+    }
+    Ok(())
 }
 
 #[allow(dead_code)]

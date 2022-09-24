@@ -3,48 +3,47 @@ use std::{io, fmt::Debug, str::FromStr};
 use std::io::{stdout, Write, stdin};
 use std::collections::{HashMap, HashSet};
 
-fn rec(n: usize, r: usize, mut s: String, v: &mut Vec<String>){
-    // println!("{} {} {} {}", n, r, s, s.len());
-    if s.len() == n {
-        v.push(s);
-    } else {
-        let sz = s.len();
-        if r == n / 2{
-            let sa = &mut s;
-            sa.push(')');
-            rec(n, r, sa.to_string(), v);
-        } else if r == s.len() / 2 {
-            let sa = &mut s;
-            sa.push('(');
-            rec(n, r + 1, sa.to_string(), v);
-        } else {
-            let sa = &mut s;
-            (*sa).push('(');
-            rec(n, r + 1, sa.to_string(), v);
-            sa.pop();
-            let sb = &mut s;
-            (*sb).push(')');
-            rec(n, r, sb.to_string(), v);
-        }
+#[derive(Debug)]
+struct Score {
+    depth: usize,
+    loc: usize
+}
+
+fn dfs(start: usize, d: usize, vis: &mut Vec<bool>, graph: &Vec<Vec<usize>>, score: &mut Score) {
+    if vis[start] == true {
+        return;
+    }
+    if d > score.depth {
+        score.loc = start;
+        score.depth = d;
+    }
+    vis[start] = true;
+    for nx in &graph[start] {
+        dfs(*nx, d + 1, vis, &graph, score);
     }
 }
 
 #[fastout]
 fn main() -> io::Result<()> {
-    input!{
-        n: usize
+    input! {
+        n: usize,
     }
-    if n % 2 == 1 {
-        Ok(())
-    } else {
-        let mut v = Vec::new();
-        rec(n, 0, "".to_string(), &mut v);
-        v.sort();
-        for ans in v {
-            println!("{}", ans);
+    let mut G = vec![vec![]; n + 1];
+    for _i in 0..n-1 {
+        input!{
+            a: usize, b: usize
         }
-        Ok(())
+        G[a].push(b);
+        G[b].push(a);
     }
+    // println!("{:?}", G);
+    let mut score = Score{depth: 0, loc: 0};
+    let mut visited = vec![false; n + 1];
+    dfs(1, 0, &mut visited, &G, &mut score);
+    visited = vec![false; n + 1];
+    dfs(score.loc, 0,&mut visited,  &G, &mut score);
+    println!("{}", score.depth + 1);
+    Ok(())
 }
 
 #[allow(dead_code)]
