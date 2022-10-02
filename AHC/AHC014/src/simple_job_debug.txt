@@ -1,0 +1,22 @@
+## ENTERING INITIALIZATION 
+N: 61
+M: 75
+## FINISHED INIT ##
+## ENTERING baseline codes
+NOT FOUND!!!! TIME: 0.666972
+## ENTERING baseline codes
+NOT FOUND!!!! TIME: 1.30743
+## ENTERING baseline codes
+NOT FOUND!!!! TIME: 1.95755
+## ENTERING baseline codes
+NOT FOUND!!!! TIME: 2.79586
+## ENTERING baseline codes
+NOT FOUND!!!! TIME: 3.59035
+## ENTERING baseline codes
+NOT FOUND!!!! TIME: 4.38406
+## ENTERING baseline codes
+NOT FOUND!!!! TIME: 4.8165
+###################### SUMMARY ######################
+ELAPSED TIME: 4.8012 s
+BEST SCORE: 504970
+#####################################################

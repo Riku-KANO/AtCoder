@@ -1,0 +1,8 @@
+## ENTERING INITIALIZATION 
+N: 61
+M: 111
+## FINISHED INIT ##
+## ENTERING baseline codes
+###################### SUMMARY ######################
+SCORE: 513659
+#####################################################
