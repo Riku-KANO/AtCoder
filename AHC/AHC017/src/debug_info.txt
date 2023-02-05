@@ -1,0 +1,10 @@
+## ENTERING INITIALIZATION 
+N: 31
+M: 289
+## FINISHED INIT ##
+## ENTERING baseline codes
+NOT FOUND!!!! TIME: 0.019304
+###################### SUMMARY ######################
+ELAPSED TIME: 0.003154 s
+BEST SCORE: 304348
+#####################################################
