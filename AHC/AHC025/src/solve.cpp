@@ -196,26 +196,33 @@ public:
       cerr << "query: " << q << endl;
       int nl, nr;
       std::vector<int> vl, vr;
-      int largest_cluster_idx = -1;
+      int largest_cluster_idx = 0;
       bool suspend = false;
+      vector<vector<int>> graph(D);
       FOR(d, 0, D-1) {
-        nl = cluster[d].size();
-        nr = cluster[d + 1].size();
-        vl = cluster[d];
-        vr = cluster[d + 1];
-        Comp res = query(nl, nr, vl, vr, q);
+        int u = largest_cluster_idx;
+        int v = d + 1;
+        
+        nl = cluster[u].size();
+        nr = cluster[v].size();
+        vl = cluster[u];
+        vr = cluster[v];
 
-        if(d == 0) {
-          if(res == Comp::LARGER) largest_cluster_idx = 0;
-          else if(res == Comp::LESS) largest_cluster_idx = 1;
-          else largest_cluster_idx = 0;
+        Comp res = query(nl, nr, vl, vr, q);
+        if(res == Comp::LARGER) {
+          graph[u].push_back(v);
+        } else if(res == Comp::LESS) {
+          graph[v].push_back(u);
+          largest_cluster_idx = v;
         } else {
-          if(res == Comp::LESS) largest_cluster_idx = d + 1;
+          graph[v].push_back(u);
+          largest_cluster_idx = v;
         }
 
         if(q == Q && d < D - 1) {
           suspend = true;
         }
+        if(q == Q) break;
       }
 
       if(!suspend) {
