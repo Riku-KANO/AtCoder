@@ -36,7 +36,7 @@ using namespace std;
 #define pii std::pair<int, int>
 #define Vec std::vector
 #define rep(i, n) for (int i = 0; i < (int)(n); i++)
-#define FOR(i, s, n) for(int i = s; i < (int)(n); i++)
+#define FOR(i, s, n) for(int i = (int)s; i < (int)(n); i++)
 
 using ll = long long;
 using u16 = uint16_t;
@@ -52,11 +52,6 @@ constexpr long long LINF = 1LL << 60;
 constexpr double EPS = 1e-6;
 const double PI = std::acos(-1);
 
-// clockwise
-static const int di[4] = {0, 1, 0, -1};
-static const int dj[4] = {1, 0, -1, 0};
-static const int di8[8] = {0, 1, 1, 1, 0, -1, -1, -1};
-static const int dj8[8] = {1, 1, 0, -1, -1, -1, 0, 1};
 double TL = 1.98;
 
 // --------------------- global variables ----------------------
@@ -75,16 +70,6 @@ int Q; // 2N<=Q<=32N
 inline double get_time(clock_t start_time)
 {
   return (double)(clock() - start_time) / CLOCKS_PER_SEC;
-}
-
-inline bool is_out(int i, int j, int d)
-{
-  return (i < 0 || j < 0 || i >= d || j >= d);
-}
-
-inline bool is_out(int i, int j, int h, int w)
-{
-  return (i < 0 || j < 0 || i >= h || j >= w);
 }
 
 
@@ -197,6 +182,7 @@ public:
       int nl, nr;
       std::vector<int> vl, vr;
       int largest_cluster_idx = 0;
+      int smallest_cluster_idx;
       bool suspend = false;
       vector<vector<int>> graph(D);
       FOR(d, 0, D-1) {
@@ -225,12 +211,33 @@ public:
         if(q == Q) break;
       }
 
+      if(q == Q) break;
+      std::vector<int> leaves;
+      FOR(d, 0, D) if(graph[d].empty()) leaves.push_back(d);
+      smallest_cluster_idx = leaves.front();
+      FOR(d, 0, leaves.size() - 1) {
+        int u = smallest_cluster_idx;
+        int v = leaves[d + 1];
+        
+        nl = cluster[u].size();
+        nr = cluster[v].size();
+        vl = cluster[u];
+        vr = cluster[v];
+
+        Comp res = query(nl, nr, vl, vr, q);
+        if(res == Comp::LARGER) {
+          smallest_cluster_idx = v;
+        }
+
+        if(q == Q && d < leaves.size() - 1) {
+          suspend = true;
+        }
+        if(q == Q) break;
+      }
+
       if(!suspend) {
         int from = largest_cluster_idx;
-        int to = largest_cluster_idx;
-        while(to == from) {
-          to = randD(mt);
-        }
+        int to = smallest_cluster_idx;
         int fsize = cluster[from].size();
         int tsize = cluster[to].size();
         int idx = (u32)mt() % cluster[from].size();
