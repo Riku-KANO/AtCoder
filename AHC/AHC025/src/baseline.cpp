@@ -132,18 +132,6 @@ struct IOServer {
       return Comp::EQUAL;
     }
   }
-
-  long long calc_score(const std::vector<int> &ans) {
-    long long t_sum = 0LL;
-    double var = 0.0;
-    std::vector<long long> t(D, 0);
-    FOR(i, 0, N) t[ans[i]] += w[i];
-    FOR(d, 0, D) t_sum += t[d];
-    double t_mean = (double)t_sum / D;
-    FOR(d, 0, D) var += pow(t[d] - t_mean, 2);
-    var /= D;
-    return 1 + std::round(100.0 * std::sqrt(var));
-  }
 };
 // ----------------------------------------------------
 
@@ -178,27 +166,21 @@ public:
   void solve()
   {
     std::vector<std::vector<int>> cluster(D);
-    std::vector<std::vector<int>> best_cluster;
-    std::vector<std::vector<int>> pre_cluster;
-    std::vector<std::pair<int,int>> history;
     FOR(i, 0, N) cluster[i%D].push_back(i);
     std::uniform_int_distribution<> randD(0, D-1);
-    std::set<int> fixed_cluster_indices;
+
     int q = 0;
     while(q < Q) {
       cerr << "query: " << q << endl;
       int nl, nr;
       std::vector<int> vl, vr;
-      int largest_cluster_idx;
+      int largest_cluster_idx = 0;
       int smallest_cluster_idx;
       bool suspend = false;
       vector<vector<int>> graph(D);
-      std::vector<int> cluster_indices;
-      FOR(d, 0, D) if(fixed_cluster_indices.find(d) == fixed_cluster_indices.end()) cluster_indices.emplace_back(d);
-      largest_cluster_idx = cluster_indices.front();
-      FOR(d, 0, cluster_indices.size() - 1) {
+      FOR(d, 0, D-1) {
         int u = largest_cluster_idx;
-        int v = cluster_indices[d + 1];
+        int v = d + 1;
         
         nl = cluster[u].size();
         nr = cluster[v].size();
@@ -224,7 +206,7 @@ public:
 
       if(q == Q) break;
       std::vector<int> leaves;
-      FOR(d, 0, D) if(graph[d].empty() && fixed_cluster_indices.find(d) == fixed_cluster_indices.end()) leaves.push_back(d);
+      FOR(d, 0, D) if(graph[d].empty()) leaves.push_back(d);
       smallest_cluster_idx = leaves.front();
       FOR(d, 0, leaves.size() - 1) {
         int u = smallest_cluster_idx;
@@ -249,41 +231,21 @@ public:
       if(!suspend) {
         int from = largest_cluster_idx;
         int to = smallest_cluster_idx;
-        if(!history.empty()) {
-          std::pair<int,int> pre = history.back();
-          if(pre.first == from && pre.second == to) {
-            best_cluster = cluster;
-          } else if(!(pre.first == to && pre.second == from)) {
-            best_cluster = cluster;
-          } else {
-            cluster = pre_cluster;
-            continue;
-          }
-        }
         int fsize = cluster[from].size();
         int tsize = cluster[to].size();
-        if(fsize == 1) {
-          fixed_cluster_indices.insert(from);
-          continue;
-        }
         int idx = (u32)mt() % cluster[from].size();
         int target_item_idx = cluster[from][idx];
-        pre_cluster = cluster;
         cluster[from].erase(cluster[from].begin() + idx);
         cluster[to].push_back(target_item_idx);
-        history.emplace_back(from, to);
       }
     }
 
     std::vector<int> ans(N, 0);
     for(int d = 0; d < D; d++) {
-      for(int idx: best_cluster[d]) ans[idx] = d;
+      for(int idx: cluster[d]) ans[idx] = d;
     }
 
     for(int i = 0; i < N; i++) std::cout << ans[i] << " \n"[i + 1 == N];
-#ifdef _LOCAL
-    std::cerr << "Score: " << server.calc_score(ans) << "\n";
-#endif
 
   } // solve
 
