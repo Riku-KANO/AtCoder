@@ -230,7 +230,7 @@ public:
     std::cerr << "Initialization done\n";
   }
 
-  //
+  //  
   void solve()
   {
     const int NUM_SIMULATION = 200;
@@ -249,14 +249,10 @@ public:
     case 3:
       ans = solve3(this->server, false);
       break;
-    case 4:
-      ans = solve4(this->server, false);
-      break;
     default:
       std::cerr << "Invalid result\n";
       break;
     }
-    std::cout << "# best result is solver " << res << std::endl;
 
     for (int i = 0; i < N; i++)
       std::cout << ans[i] << " \n"[i + 1 == N];
@@ -265,61 +261,6 @@ public:
 #endif
 
   } // solve
-
-  void find_largest(
-      int &largest_idx,
-      bool &suspend,
-      const std::vector<std::vector<int>> &cluster,
-      const std::set<int> &fixed,
-      int &num_query,
-      const IOServer &server,
-      bool is_simulation)
-  {
-    int nl, nr;
-    std::vector<int> vl, vr;
-    vector<vector<int>> graph(D);
-    std::vector<int> cluster_indices;
-    FOR(d, 0, D)
-    if (fixed.find(d) == fixed.end())
-      cluster_indices.emplace_back(d);
-    largest_idx = cluster_indices.front();
-    FOR(d, 0, cluster_indices.size() - 1)
-    {
-      int u = largest_idx;
-      int v = cluster_indices[d + 1];
-
-      nl = cluster[u].size();
-      nr = cluster[v].size();
-      vl = cluster[u];
-      vr = cluster[v];
-
-      Comp res = query(nl, nr, vl, vr, num_query, server, is_simulation);
-      if (res == Comp::LARGER)
-      {
-        graph[u].push_back(v);
-      }
-      else if (res == Comp::LESS)
-      {
-        graph[v].push_back(u);
-        largest_idx = v;
-      }
-      else
-      {
-        graph[v].push_back(u);
-        largest_idx = v;
-      }
-
-      if (num_query == Q && d < D - 1)
-      {
-        suspend = true;
-        return;
-      }
-      if (num_query == Q)
-      {
-        return;
-      }
-    }
-  }
 
   /**
    * @brief
@@ -465,7 +406,7 @@ public:
   {
     std::vector<int> ans = solve3(server, false);
     FOR(i, 0, N)
-    std::cout << ans[i] << " \n"[i + 1 == N];
+        std::cout << ans[i] << " \n"[i + 1 == N];
 #ifdef _LOCAL
     std::cerr << "Score :" << server.calc_score(ans) << std::endl;
 #endif
@@ -713,7 +654,7 @@ private:
 
   int simulation(int num_simulation = 10)
   {
-    int num_solvers = 4;
+    int num_solvers = 3;
     std::vector<ll> scores(num_solvers, 0);
     for (int sid = 0; sid < num_simulation; sid++)
     {
@@ -731,16 +672,11 @@ private:
       ans = this->solve2(sim_server, true);
       ll score2 = sim_server.calc_score(ans);
       scores[1] += score2;
-
       // solve3
       ans = this->solve3(sim_server, true);
+      cerr << "OK\n";
       ll score3 = sim_server.calc_score(ans);
       scores[2] += score3;
-
-      // solve4
-      ans = this->solve4(sim_server, true);
-      ll score4 = sim_server.calc_score(ans);
-      scores[3] += score4;
     }
 
     int best_solver = -1;
@@ -858,7 +794,6 @@ private:
     std::vector<std::vector<int>> best_cluster;
     std::vector<std::vector<int>> pre_cluster;
     std::vector<Operation> history;
-    std::vector<int> ans_tmp(N);
     FOR(i, 0, N)
     {
       cluster[i % D].push_back(i);
@@ -1005,15 +940,6 @@ private:
           Operation operation = {from, to, {target_item_idx}, {}, largest_cluster_idx, smallest_cluster_idx};
           history.push_back(operation);
         }
-
-        if (!is_simulation)
-        {
-          FOR(d, 0, D)
-          for (int item_idx : best_cluster[d]) ans_tmp[item_idx] = d;
-          std::cout << "#c ";
-          FOR(i, 0, N)
-              std::cout << ans_tmp[i] << " \n"[i + 1 == N];
-        }
       }
     }
     std::vector<int> ans(N, 0);
@@ -1043,12 +969,10 @@ private:
     bool suspend = false;
     std::vector<int> sorted_items = merge_sort(items, q, suspend, server, is_simulation);
     std::vector<int> sorted_item_indices(N);
-    FOR(i, 0, N)
-    sorted_item_indices[sorted_items[i]] = i;
+    FOR(i, 0, N) sorted_item_indices[sorted_items[i]] = i;
     std::vector<std::vector<int>> cluster(D);
     std::vector<std::vector<int>> best_cluster;
     std::set<int> fixed_cluster_indices;
-    std::vector<int> ans_tmp(N);
 
     FOR(d, 0, D)
     {
@@ -1113,132 +1037,16 @@ private:
 
       int target_item_idx = sorted_item_indices[target_item];
       std::vector<int> to_indices;
-      for (int item_idx : cluster[to])
-        to_indices.push_back(sorted_item_indices[item_idx]);
+      for(int item_idx: cluster[to]) to_indices.push_back(sorted_item_indices[item_idx]);
       int pos = std::lower_bound(to_indices.begin(), to_indices.end(), target_item_idx) - to_indices.begin();
       cluster[to].insert(cluster[to].begin() + pos, target_item);
-
-      if (!is_simulation)
-      {
-        FOR(d, 0, D)
-        for (int item_idx : cluster[d]) ans_tmp[item_idx] = d;
-        std::cout << "#c ";
-        FOR(i, 0, N)
-            std::cout << ans_tmp[i] << " \n"[i + 1 == N];
-      }
-
       // insert_item_by_bs(to, target_item, cluster, suspend, q, server, is_simulation);
       // if (suspend)
       //   break;
     }
 
     FOR(d, 0, D)
-    for (int item_idx : cluster[d])
-      ans[item_idx] = d;
-    return ans;
-  }
-
-  /**
-   * @brief マージソートを使う。
-   * 総和が大きいクラスターを見つけ、その一つの要素をソート済みの配列で隣り合うアイテムと交換する。
-   *
-   * @param server
-   * @param is_simulation
-   * @return std::vector<int>
-   */
-  std::vector<int> solve4(const IOServer &server, bool is_simulation)
-  {
-    std::vector<int> items(N);
-    std::vector<int> ans(N, 0);
-    std::iota(items.begin(), items.end(), 0);
-    int q = 0;
-    bool suspend = false;
-    std::vector<int> sorted_items = merge_sort(items, q, suspend, server, is_simulation);
-    std::vector<int> sorted_item_indices(N);
-    FOR(i, 0, N)
-    sorted_item_indices[sorted_items[i]] = i;
-    std::vector<std::vector<int>> cluster(D);
-    std::vector<std::vector<int>> best_cluster;
-    std::set<int> fixed_cluster_indices;
-    std::vector<int> ans_tmp(N);
-
-    FOR(d, 0, D)
-    {
-      for (int idx : initial_cluster[d])
-      {
-        cluster[d].push_back(sorted_items[idx]);
-      }
-    }
-
-    if (q < Q)
-      best_cluster = cluster;
-    else
-      return ans;
-
-    while (q < Q)
-    {
-      int nl, nr;
-      std::vector<int> vl, vr;
-      int largest_cluster_idx;
-      int smallest_cluster_idx;
-      bool suspend = false;
-
-      find_largest(
-          largest_cluster_idx,
-          suspend,
-          cluster,
-          fixed_cluster_indices,
-          q,
-          server,
-          is_simulation);
-
-      if (suspend)
-        break;
-
-      int from = largest_cluster_idx;
-      int fsize = cluster[from].size();
-      if (fsize == 1)
-      {
-        fixed_cluster_indices.insert(from);
-        continue;
-      }
-      int from_idx = (u32)mt() % (fsize - 1);
-      int target_item = cluster[from][from_idx];
-      int from_item_idx = sorted_item_indices[target_item];
-      if (from_item_idx == 0)
-      {
-        int to = from;
-        while (to == from)
-        {
-          to = (u32)mt() % D;
-        }
-        cluster[to].insert(cluster[to].begin(), target_item);
-        cluster[from].erase(cluster[from].begin());
-      }
-      else
-      {
-        int to_item_idx = from_item_idx - 1;
-        int to_item = sorted_items[to_item_idx];
-        FOR(d, 0, D)
-        FOR(i, 0, cluster[d].size()) if (cluster[d][i] == to_item)
-        {
-          std::swap(cluster[d][i], cluster[from][from_idx]);
-          break;
-        }
-      }
-      if (!is_simulation)
-      {
-        FOR(d, 0, D)
-        for (int item_idx : cluster[d]) ans_tmp[item_idx] = d;
-        std::cout << "#c ";
-        FOR(i, 0, N)
-            std::cout << ans_tmp[i] << " \n"[i + 1 == N];
-      }
-    }
-
-    FOR(d, 0, D)
-    for (int item_idx : cluster[d])
-      ans[item_idx] = d;
+    for (int item_idx : cluster[d]) ans[item_idx] = d;
     return ans;
   }
 

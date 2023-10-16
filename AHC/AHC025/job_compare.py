@@ -2,7 +2,7 @@ import os
 import re
 
 EXE_MAIN = "./bin/solve"
-REF = "out/sub4/"
+REF = "out/sub15/"
 
 for i in range(100):
   print(f"### CASE {i:03d} ######")
