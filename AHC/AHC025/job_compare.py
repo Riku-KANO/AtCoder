@@ -27,4 +27,6 @@ for i in range(100):
     print("SCORE not found")
 
 
-  print(f"score(main/ref): ({score_target}, {score_ref}), ratio: {score_target / score_ref}")
+  print(f"score(main): {score_target:10d}")
+  print(f"score(ref ): {score_ref:10d}")
+  print(f"ratio: {score_ref / score_target}")
