@@ -283,7 +283,6 @@ public:
   {
     int nl, nr;
     std::vector<int> vl, vr;
-    vector<vector<int>> graph(D);
     std::vector<int> cluster_indices;
     FOR(d, 0, D)
     if (fixed.find(d) == fixed.end())
@@ -300,19 +299,54 @@ public:
       vr = cluster[v];
 
       Comp res = query(nl, nr, vl, vr, num_query, server, is_simulation);
+
+      if (res == Comp::LESS)
+      {
+        largest_idx = v;
+      }
+
+      if (num_query == Q && d < D - 1)
+      {
+        suspend = true;
+        return;
+      }
+      if (num_query == Q)
+      {
+        return;
+      }
+    }
+  }
+
+  void find_smallest(
+      int &smallest_idx,
+      bool &suspend,
+      const std::vector<std::vector<int>> &cluster,
+      const std::set<int> &fixed,
+      int &num_query,
+      const IOServer &server,
+      bool is_simulation)
+  {
+    int nl, nr;
+    std::vector<int> vl, vr;
+    std::vector<int> cluster_indices;
+    FOR(d, 0, D)
+    if (fixed.find(d) == fixed.end())
+      cluster_indices.emplace_back(d);
+    smallest_idx = cluster_indices.front();
+    FOR(d, 0, cluster_indices.size() - 1)
+    {
+      int u = smallest_idx;
+      int v = cluster_indices[d + 1];
+
+      nl = cluster[u].size();
+      nr = cluster[v].size();
+      vl = cluster[u];
+      vr = cluster[v];
+
+      Comp res = query(nl, nr, vl, vr, num_query, server, is_simulation);
       if (res == Comp::LARGER)
       {
-        graph[u].push_back(v);
-      }
-      else if (res == Comp::LESS)
-      {
-        graph[v].push_back(u);
-        largest_idx = v;
-      }
-      else
-      {
-        graph[v].push_back(u);
-        largest_idx = v;
+        smallest_idx = v;
       }
 
       if (num_query == Q && d < D - 1)
@@ -845,11 +879,7 @@ private:
           best_cluster = cluster;
           if (!is_simulation)
           {
-            FOR(d, 0, D)
-            for (int item_idx : best_cluster[d]) ans_tmp[item_idx] = d;
-            std::cout << "#c ";
-            FOR(i, 0, N)
-                std::cout << ans_tmp[i] << " \n"[i + 1 == N];
+            output_for_vis(best_cluster);
           }
         }
         else
@@ -1030,12 +1060,7 @@ private:
 
         if (!is_simulation)
         {
-          FOR(d, 0, D)
-          for (int item_idx : best_cluster[d])
-            ans_tmp[item_idx] = d;
-          std::cout << "#c ";
-          FOR(i, 0, N)
-          std::cout << ans_tmp[i] << " \n"[i + 1 == N];
+          output_for_vis(best_cluster);
         }
       }
     }
@@ -1143,12 +1168,7 @@ private:
 
       if (!is_simulation)
       {
-        FOR(d, 0, D)
-        for (int item_idx : cluster[d])
-          ans_tmp[item_idx] = d;
-        std::cout << "#c ";
-        FOR(i, 0, N)
-        std::cout << ans_tmp[i] << " \n"[i + 1 == N];
+        output_for_vis(cluster);
       }
 
       // insert_item_by_bs(to, target_item, cluster, suspend, q, server, is_simulation);
@@ -1253,12 +1273,7 @@ private:
       }
       if (!is_simulation)
       {
-        FOR(d, 0, D)
-        for (int item_idx : cluster[d])
-          ans_tmp[item_idx] = d;
-        std::cout << "#c ";
-        FOR(i, 0, N)
-        std::cout << ans_tmp[i] << " \n"[i + 1 == N];
+        output_for_vis(cluster);
       }
     }
 
@@ -1424,12 +1439,7 @@ private:
       best_cluster = cluster;
       if (!is_simulation)
       {
-        FOR(d, 0, D)
-        for (int item_idx : best_cluster[d])
-          ans_tmp[item_idx] = d;
-        std::cout << "#c ";
-        FOR(i, 0, N)
-        std::cout << ans_tmp[i] << " \n"[i + 1 == N];
+        output_for_vis(best_cluster);
       }
     } // while(q < Q)
 
@@ -1458,7 +1468,6 @@ private:
     std::vector<int> ans_tmp(N);
     std::vector<std::vector<int>> cluster(D);
     std::vector<std::vector<int>> best_cluster;
-    std::vector<std::vector<int>> pre_cluster;
     std::set<int> fixed_cluster_indices;
     std::vector<int> indices(N);
     std::iota(indices.begin(), indices.end(), 0);
@@ -1471,21 +1480,39 @@ private:
     std::vector<int> vl, vr;
     while (q < Q)
     {
+      bool large;
       int largest_index;
+      int smallest_index;
       bool suspend = false;
-      find_largest(
-          largest_index,
-          suspend,
-          cluster,
-          fixed_cluster_indices,
-          q,
-          server,
-          is_simulation);
-
-      if (cluster[largest_index].size() == 1)
+      if ((u32)mt() % 2 == 0)
       {
-        fixed_cluster_indices.insert(largest_index);
-        continue;
+        large = true;
+        find_largest(
+            largest_index,
+            suspend,
+            cluster,
+            fixed_cluster_indices,
+            q,
+            server,
+            is_simulation);
+
+        if (cluster[largest_index].size() == 1)
+        {
+          fixed_cluster_indices.insert(largest_index);
+          continue;
+        }
+      }
+      else
+      {
+        large = false;
+        find_smallest(
+            smallest_index,
+            suspend,
+            cluster,
+            fixed_cluster_indices,
+            q,
+            server,
+            is_simulation);
       }
 
       if (!suspend)
@@ -1493,79 +1520,127 @@ private:
         int pat = (u32)mt() % 2;
         if (pat == 0)
         {
+          std::vector<int> indices_D(D);
+          std::iota(indices_D.begin(), indices_D.end(), 0);
+          std::shuffle(indices_D.begin(), indices_D.end(), mt);
+          int from;
+          int to;
+          if (large)
+          {
+            from = largest_index;
+            for (int idx : indices_D)
+            {
+              if (fixed_cluster_indices.find(idx) != fixed_cluster_indices.end() || idx == from)
+              {
+                continue;
+              }
+              to = idx;
+              break;
+            }
+          }
+          else
+          {
+            to = smallest_index;
+            for (int idx : indices_D)
+            {
+              if (fixed_cluster_indices.find(idx) != fixed_cluster_indices.end() || idx == to)
+              {
+                continue;
+              }
+              if (cluster[idx].size() == 1)
+              {
+                continue;
+              }
+              from = idx;
+              break;
+            }
+          }
+
           try_move_one_item(
-              largest_index,
+              from,
+              to,
               cluster, best_cluster,
               fixed_cluster_indices,
               q,
               server,
-              is_simulation);
+              is_simulation,
+              large);
         }
         else if (pat == 1)
         {
+          int from;
+          if (large)
+          {
+            from = largest_index;
+          }
+          else
+          {
+            from = smallest_index;
+          }
+
           try_exchange_one_item(
-              largest_index,
+              from,
               cluster,
               best_cluster,
               fixed_cluster_indices,
               q,
               server,
-              is_simulation);
+              is_simulation,
+              large);
         }
       }
     }
 
     FOR(d, 0, D)
-    for (int item_idx : best_cluster[d]) ans[item_idx] = d;
+    for (int item_idx : best_cluster[d])
+      ans[item_idx] = d;
 
     return ans;
   }
 
   void try_move_one_item(
-      int largest_index,
+      int from,
+      int to,
       std::vector<std::vector<int>> &cluster,
       std::vector<std::vector<int>> &best_cluster,
       std::set<int> &fixed,
       int &num_query,
       const IOServer &server,
-      bool is_simulation)
+      bool is_simulation,
+      bool large)
   {
 
     std::vector<std::vector<int>> pre_cluster = cluster;
-    std::vector<int> indices(D);
-    std::iota(indices.begin(), indices.end(), 0);
-    std::shuffle(indices.begin(), indices.end(), mt);
-    int from = largest_index;
     int fsize = cluster[from].size();
-    int to;
     int nl, nr;
     std::vector<int> vl, vr;
-    for (int idx : indices)
-    {
-      if (fixed.find(idx) != fixed.end() || idx == from)
-      {
-        continue;
-      }
-      to = idx;
-      break;
-    }
 
     int idx = (u32)mt() % fsize;
     int target_item = cluster[from][idx];
 
     cluster[to].emplace_back(target_item);
-    FOR(i, 0, cluster[to].size())
-    if (cluster[to][i] == target_item)
+    FOR(i, 0, cluster[from].size())
+    if (cluster[from][i] == target_item)
     {
-      cluster[to].erase(cluster[to].begin() + i);
+      cluster[from].erase(cluster[from].begin() + i);
       break;
     }
 
-    vl = pre_cluster[from];
-    vr = cluster[to];
+    if (large)
+    {
+      vl = pre_cluster[from];
+      vr = cluster[to];
+    }
+    else
+    {
+      vl = cluster[from];
+      vr = pre_cluster[to];
+    }
+
     std::tie(vl, vr) = delete_intersection_set(vl, vr);
     nl = vl.size();
     nr = vr.size();
+
     Comp res = query(nl, nr, vl, vr, num_query, server, is_simulation);
     if (res == Comp::LESS)
     {
@@ -1576,30 +1651,26 @@ private:
       best_cluster = cluster;
       if (!is_simulation)
       {
-        std::vector<int> ans_tmp(N);
-        FOR(d, 0, D)
-        for (int item_idx : best_cluster[d]) ans_tmp[item_idx] = d;
-        std::cout << "#c ";
-        FOR(i, 0, N)
-            std::cout << ans_tmp[i] << " \n"[i + 1 == N];
+        output_for_vis(best_cluster);
       }
     }
   }
 
   void try_exchange_one_item(
-      int largest_index,
+      int from,
       std::vector<std::vector<int>> &cluster,
       std::vector<std::vector<int>> &best_cluster,
       std::set<int> &fixed,
       int &num_query,
       const IOServer &server,
-      bool is_simulation)
+      bool is_simulation,
+      bool large)
   {
     std::vector<std::vector<int>> pre_cluster = cluster;
     std::vector<int> indices(D);
     std::iota(indices.begin(), indices.end(), 0);
     std::shuffle(indices.begin(), indices.end(), mt);
-    int u = largest_index;
+    int u = from;
     int v;
     int nl, nr;
     std::vector<int> vl, vr;
@@ -1619,35 +1690,26 @@ private:
     int vidx = (u32)mt() % vsize;
     int uitem = cluster[u][uidx];
     int vitem = cluster[v][vidx];
-    cluster[u].emplace_back(vitem);
-    cluster[v].emplace_back(uitem);
-    FOR(i, 0, cluster[u].size())
-    if (cluster[u][i] == uitem)
-    {
-      cluster[u].erase(cluster[u].begin() + i);
-      break;
-    }
-    FOR(i, 0, cluster[v].size())
-    if (cluster[v][i] == vitem)
-    {
-      cluster[v].erase(cluster[v].begin() + i);
-      break;
-    }
+    std::swap(cluster[u][uidx], cluster[v][vidx]);
 
     vl = pre_cluster[u];
     vr = cluster[u];
     std::tie(vl, vr) = delete_intersection_set(vl, vr);
     nl = vl.size();
     nr = vr.size();
-    Comp res1 = query(nl, nr, vl, vr, num_query, server, is_simulation);
-    if (res1 == Comp::LESS)
+    if (nl > 0 && nr > 0)
     {
-      cluster = pre_cluster;
-      return;
-    }
-    if (num_query == Q)
-    {
-      return;
+      Comp res1 = query(nl, nr, vl, vr, num_query, server, is_simulation);
+      if (res1 == Comp::LESS && large)
+      {
+        cluster = pre_cluster;
+        return;
+      }
+      else if (res1 == Comp::LARGER && !large)
+      {
+        cluster = pre_cluster;
+        return;
+      }
     }
 
     vl = pre_cluster[u];
@@ -1655,21 +1717,29 @@ private:
     std::tie(vl, vr) = delete_intersection_set(vl, vr);
     nl = vl.size();
     nr = vr.size();
-    Comp res2 = query(nl, nr, vl, vr, num_query, server, is_simulation);
-    if (res2 == Comp::LESS)
+    if (nl > 0 && nr > 0)
     {
-      cluster = pre_cluster;
-      return;
+      if (num_query == Q)
+      {
+        return;
+      }
+      Comp res2 = query(nl, nr, vl, vr, num_query, server, is_simulation);
+      if (res2 == Comp::LESS && large)
+      {
+        cluster = pre_cluster;
+        return;
+      }
+      else if (res2 == Comp::LARGER && !large)
+      {
+        cluster = pre_cluster;
+        return;
+      }
     }
+
     best_cluster = cluster;
     if (!is_simulation)
     {
-      std::vector<int> ans_tmp(N);
-      FOR(d, 0, D)
-      for (int item_idx : best_cluster[d]) ans_tmp[item_idx] = d;
-      std::cout << "#c ";
-      FOR(i, 0, N)
-          std::cout << ans_tmp[i] << " \n"[i + 1 == N];
+      output_for_vis(best_cluster);
     }
   }
 
@@ -1752,14 +1822,12 @@ private:
     {
       if (i1 == m)
       {
-        buf[idx] = arr[i2];
-        i2++;
+        buf[idx] = arr[i2++];
         continue;
       }
       else if (i2 == r)
       {
-        buf[idx] = arr[i1];
-        i1++;
+        buf[idx] = arr[i1++];
         continue;
       }
       else
@@ -1767,13 +1835,11 @@ private:
         Comp res = query(1, 1, {arr[i1]}, {arr[i2]}, num_query, server, simulation);
         if (res == Comp::LESS)
         {
-          buf[idx] = arr[i1];
-          i1++;
+          buf[idx] = arr[i1++];
         }
         else
         {
-          buf[idx] = arr[i2];
-          i2++;
+          buf[idx] = arr[i2++];
         }
 
         if (num_query == Q)
@@ -1802,6 +1868,13 @@ private:
       if (cnt[item_idx] == 1)
         rety.emplace_back(item_idx);
     return {retx, rety};
+  }
+
+  void output_for_vis(const std::vector<std::vector<int>>& cluster) {
+    std::vector<int> ans(N);
+    FOR(d, 0, D) for(int item_idx: cluster[d]) ans[item_idx] = d;
+    std::cout << "#c ";
+    FOR(i, 0, N) std::cout << ans[i] << " \n"[i + 1 == N];
   }
 };
 
