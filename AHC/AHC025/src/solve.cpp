@@ -780,7 +780,6 @@ private:
     std::vector<std::vector<int>> cluster(D);
     std::vector<std::vector<int>> best_cluster;
     std::vector<std::vector<int>> pre_cluster;
-    std::vector<std::pair<int, int>> history;
     std::vector<int> indices(N);
     std::iota(indices.begin(), indices.end(), 0);
     std::shuffle(indices.begin(), indices.end(), mt);
@@ -818,30 +817,26 @@ private:
           fixed_cluster_indices.insert(from);
           continue;
         }
-        if (!history.empty())
-        {
-          std::pair<int, int> pre = history.back();
-          if (pre.first == from && pre.second == to)
-          {
-            best_cluster = cluster;
-          }
-          else if (!(pre.first == to && pre.second == from))
-          {
-            best_cluster = cluster;
-          }
-          else
-          {
-            cluster = pre_cluster;
-            history.pop_back();
-            continue;
-          }
-        }
+       
+          
         int idx = (u32)mt() % fsize;
         int target_item_idx = cluster[from][idx];
         pre_cluster = cluster;
         cluster[from].erase(cluster[from].begin() + idx);
         cluster[to].push_back(target_item_idx);
-        history.emplace_back(from, to);
+
+        std::vector<int> vl, vr;
+        vl = pre_cluster[from];
+        vr = cluster[to];
+        std::tie(vl, vr) = delete_intersection_set(vl, vr);
+        nl = vl.size();
+        nr = vr.size();
+        Comp res = query(nl, nr, vl, vr, q, server, is_simulation);
+        if(res == Comp::LARGER) {
+          best_cluster = cluster;
+        } else {
+          cluster = pre_cluster;
+        }
       }
     }
 
@@ -1275,10 +1270,12 @@ private:
     cluster[i % D].push_back(indices[i]);
     best_cluster = cluster;
     int q = 0;
+    int nl, nr;
+    std::vector<int> vl, vr;
     while (q < Q)
     {
-      int nl, nr;
-      std::vector<int> vl, vr;
+      int pre_nl, pre_nr;
+      std::vector<int> pre_vl, pre_vr;
       int u, v;
 
       u = (u32)mt() % D;
@@ -1288,30 +1285,30 @@ private:
         v = (u32)mt() % D;
       }
 
-      vl = cluster[u];
-      vr = cluster[v];
-      nl = vl.size();
-      nr = vr.size();
-      Comp res = query(nl, nr, vl, vr, q, server, is_simulation);
+      pre_vl = cluster[u];
+      pre_vr = cluster[v];
+      pre_nl = pre_vl.size();
+      pre_nr = pre_vr.size();
+      Comp pre_res = query(pre_nl, pre_nr, pre_vl, pre_vr, q, server, is_simulation);
       if (q == Q)
       {
         break;
       }
       int u_num_choose;
       int v_num_choose;
-      if (res == Comp::LARGER)
+      if (pre_res == Comp::LARGER)
       {
-        if (nl == 1)
+        if (pre_nl == 1)
           continue;
-        u_num_choose = std::min((int)((u32)mt() % nl + 1), nl - 1);
-        v_num_choose = (u32)mt() % nr;
+        u_num_choose = std::min((int)((u32)mt() % pre_nl + 1), pre_nl - 1);
+        v_num_choose = (u32)mt() % pre_nr;
       }
-      else if (res == Comp::LESS)
+      else if (pre_res == Comp::LESS)
       {
-        if (nr == 1)
+        if (pre_nr == 1)
           continue;
-        u_num_choose = (u32)mt() % nl;
-        v_num_choose = std::min((int)((u32)mt() % nr + 1), nr - 1);
+        u_num_choose = (u32)mt() % pre_nl;
+        v_num_choose = std::min((int)((u32)mt() % pre_nr + 1), pre_nr - 1);
       }
       else
       {
@@ -1325,22 +1322,9 @@ private:
       present_from_u.emplace_back(cluster[u][i]);
       FOR(i, 0, v_num_choose)
       present_from_v.emplace_back(cluster[v][i]);
-      nl = u_num_choose;
-      nr = v_num_choose;
-      vl = present_from_u;
-      vr = present_from_v;
-      if (nl > 0 && nr > 0)
-      {
-        Comp validation_res = query(nl, nr, vl, vr, q, server, is_simulation);
-        if (res != validation_res)
-        {
-          continue;
-        }
-        if (q == Q)
-          break;
-      }
-
+      
       pre_cluster = cluster;
+
       for (int present_item : present_from_u)
       {
         cluster[v].emplace_back(present_item);
@@ -1361,26 +1345,59 @@ private:
           break;
         }
       }
-      nl = cluster[u].size();
-      nr = cluster[v].size();
-      vl = cluster[u];
-      vr = cluster[v];
-      Comp nx_res = query(nl, nr, vl, vr, q, server, is_simulation);
-      if (nx_res == res || nx_res == Comp::EQUAL)
-      {
-        best_cluster = cluster;
-        if (!is_simulation)
-        {
-          FOR(d, 0, D)
-          for (int item_idx : best_cluster[d]) ans_tmp[item_idx] = d;
-          std::cout << "#c ";
-          FOR(i, 0, N)
-              std::cout << ans_tmp[i] << " \n"[i + 1 == N];
+      int nx_nl = cluster[u].size();
+      int nx_nr = cluster[v].size();
+      std::vector<int> nx_vl = cluster[u];
+      std::vector<int> nx_vr = cluster[v];
+
+      if(pre_res == Comp::LARGER) {
+        std::tie(vl, vr) = delete_intersection_set(nx_vl, pre_vl);
+        nl = vl.size();
+        nr = vr.size();
+        if(nl > 0) {
+          Comp nx_res1 = query(nl, nr, vl, vr, q, server, is_simulation);
+          if(nx_res1 == Comp::LARGER) {
+            cluster = pre_cluster;
+            continue;
+          }
+          if(q == Q) break;
+        }
+        std::tie(vl, vr) = delete_intersection_set(nx_vr, pre_vl);
+        nl = vl.size();
+        nr = vr.size();
+        Comp nx_res2 = query(nl, nr, vl, vr, q, server, is_simulation);
+        if(nx_res2 == Comp::LARGER) {
+          cluster = pre_cluster;
+          continue;
+        }
+      } else if(pre_res == Comp::LESS) {
+        std::tie(vl, vr) = delete_intersection_set(nx_vl, pre_vr);
+        nl = vl.size();
+        nr = vr.size();
+        Comp nx_res1 = query(nl, nr, vl, vr, q, server, is_simulation);
+        if(nx_res1 == Comp::LARGER) {
+          cluster = pre_cluster;
+          continue;
+        }
+        std::tie(vl, vr) = delete_intersection_set(nx_vr, pre_vr);
+        nl = vl.size();
+        nr = vr.size();
+        if(nl > 0) {
+          if(q == Q) break;
+          Comp nx_res2 = query(nl, nr, vl, vr, q, server, is_simulation);
+          if(nx_res2 == Comp::LARGER) {
+            cluster = pre_cluster;
+            continue;
+          }
         }
       }
-      else
-      {
-        cluster = pre_cluster;
+      best_cluster = cluster;
+      if(!is_simulation) {
+        FOR(d, 0, D)
+        for (int item_idx : best_cluster[d]) ans_tmp[item_idx] = d;
+        std::cout << "#c ";
+        FOR(i, 0, N)
+            std::cout << ans_tmp[i] << " \n"[i + 1 == N];
       }
     } // while(q < Q)
 
@@ -1389,6 +1406,20 @@ private:
       for (int idx : best_cluster[d])
         ans[idx] = d;
     }
+    return ans;
+  }
+
+  /**
+   * @brief 
+   * 
+   * @param server 
+   * @param is_simulation 
+   * @return std::vector<int> 
+   */
+  std::vector<int> solve6(IOServer& server, bool is_simulation) {
+    std::vector<int> lowest_max_items;
+    std::vector<int> ans(N);
+
     return ans;
   }
 
@@ -1504,6 +1535,16 @@ private:
     }
     for (int idx = l; idx < r; idx++)
       arr[idx] = buf[idx];
+  }
+
+  std::pair<std::vector<int>, std::vector<int>> delete_intersection_set(const std::vector<int>& vx, const std::vector<int>& vy) {
+    std::vector<int> cnt(N, 0);
+    for(int item_idx: vx) cnt[item_idx]++;
+    for(int item_idx: vy) cnt[item_idx]++;
+    std::vector<int> retx, rety;
+    for(int item_idx: vx) if(cnt[item_idx] == 1) retx.emplace_back(item_idx);
+    for(int item_idx: vy) if(cnt[item_idx] == 1) rety.emplace_back(item_idx);
+    return {retx, rety};
   }
 };
 
