@@ -67,7 +67,7 @@ if __name__ == "__main__":
       with open(f"{out_path}/{i:04d}debug.txt") as f:
         result = re.findall(".*Score\s*:\s*([0-9]*)\s*", f.read())
         score = int(result[0])
-        print(f"[case {i:04d}]: score: {score:9d}")
+        print(f"[case {i:04d}]: score: {score:10d}")
         total_score += int(result[0])
 
     print(f"total_score: {total_score}")

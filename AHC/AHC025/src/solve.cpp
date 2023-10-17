@@ -252,6 +252,9 @@ public:
     case 4:
       ans = solve4(this->server, false);
       break;
+    case 5:
+      ans = solve5(this->server, false);
+      break;
     default:
       std::cerr << "Invalid result\n";
       break;
@@ -713,7 +716,7 @@ private:
 
   int simulation(int num_simulation = 10)
   {
-    int num_solvers = 4;
+    int num_solvers = 5;
     std::vector<ll> scores(num_solvers, 0);
     for (int sid = 0; sid < num_simulation; sid++)
     {
@@ -741,6 +744,11 @@ private:
       ans = this->solve4(sim_server, true);
       ll score4 = sim_server.calc_score(ans);
       scores[3] += score4;
+
+      // solve5
+      ans = this->solve5(sim_server, true);
+      ll score5 = sim_server.calc_score(ans);
+      scores[4] += score5;
     }
 
     int best_solver = -1;
@@ -1009,10 +1017,11 @@ private:
         if (!is_simulation)
         {
           FOR(d, 0, D)
-          for (int item_idx : best_cluster[d]) ans_tmp[item_idx] = d;
+          for (int item_idx : best_cluster[d])
+            ans_tmp[item_idx] = d;
           std::cout << "#c ";
           FOR(i, 0, N)
-              std::cout << ans_tmp[i] << " \n"[i + 1 == N];
+          std::cout << ans_tmp[i] << " \n"[i + 1 == N];
         }
       }
     }
@@ -1121,10 +1130,11 @@ private:
       if (!is_simulation)
       {
         FOR(d, 0, D)
-        for (int item_idx : cluster[d]) ans_tmp[item_idx] = d;
+        for (int item_idx : cluster[d])
+          ans_tmp[item_idx] = d;
         std::cout << "#c ";
         FOR(i, 0, N)
-            std::cout << ans_tmp[i] << " \n"[i + 1 == N];
+        std::cout << ans_tmp[i] << " \n"[i + 1 == N];
       }
 
       // insert_item_by_bs(to, target_item, cluster, suspend, q, server, is_simulation);
@@ -1217,10 +1227,11 @@ private:
       }
       else
       {
-        int to_item_idx = from_item_idx - 1;
+        int to_item_idx = from_item_idx;
         int to_item = sorted_items[to_item_idx];
         FOR(d, 0, D)
-        FOR(i, 0, cluster[d].size()) if (cluster[d][i] == to_item)
+        FOR(i, 0, cluster[d].size())
+        if (cluster[d][i] == to_item)
         {
           std::swap(cluster[d][i], cluster[from][from_idx]);
           break;
@@ -1229,16 +1240,155 @@ private:
       if (!is_simulation)
       {
         FOR(d, 0, D)
-        for (int item_idx : cluster[d]) ans_tmp[item_idx] = d;
+        for (int item_idx : cluster[d])
+          ans_tmp[item_idx] = d;
         std::cout << "#c ";
         FOR(i, 0, N)
-            std::cout << ans_tmp[i] << " \n"[i + 1 == N];
+        std::cout << ans_tmp[i] << " \n"[i + 1 == N];
       }
     }
 
     FOR(d, 0, D)
     for (int item_idx : cluster[d])
       ans[item_idx] = d;
+    return ans;
+  }
+
+  /**
+   * @brief ランダムに2つのクラスターを選ぶ。その2つを比較し、アイテムのやり取りを行う
+   *
+   * @param server
+   * @param is_simulation
+   * @return std::vector<int>
+   */
+  std::vector<int> solve5(const IOServer &server, bool is_simulation)
+  {
+    std::vector<int> ans(N, 0);
+    std::vector<int> ans_tmp(N);
+    std::vector<std::vector<int>> cluster(D);
+    std::vector<std::vector<int>> best_cluster;
+    std::vector<std::vector<int>> pre_cluster;
+    std::vector<int> indices(N);
+    std::iota(indices.begin(), indices.end(), 0);
+    std::shuffle(indices.begin(), indices.end(), mt);
+    FOR(i, 0, N)
+    cluster[i % D].push_back(indices[i]);
+    best_cluster = cluster;
+    int q = 0;
+    while (q < Q)
+    {
+      int nl, nr;
+      std::vector<int> vl, vr;
+      int u, v;
+
+      u = (u32)mt() % D;
+      v = u;
+      while (u == v)
+      {
+        v = (u32)mt() % D;
+      }
+
+      vl = cluster[u];
+      vr = cluster[v];
+      nl = vl.size();
+      nr = vr.size();
+      Comp res = query(nl, nr, vl, vr, q, server, is_simulation);
+      if (q == Q)
+      {
+        break;
+      }
+      int u_num_choose;
+      int v_num_choose;
+      if (res == Comp::LARGER)
+      {
+        if (nl == 1)
+          continue;
+        u_num_choose = std::min((int)((u32)mt() % nl + 1), nl - 1);
+        v_num_choose = (u32)mt() % nr;
+      }
+      else if (res == Comp::LESS)
+      {
+        if (nr == 1)
+          continue;
+        u_num_choose = (u32)mt() % nl;
+        v_num_choose = std::min((int)((u32)mt() % nr + 1), nr - 1);
+      }
+      else
+      {
+        continue;
+      }
+
+      std::shuffle(cluster[u].begin(), cluster[u].end(), mt);
+      std::shuffle(cluster[v].begin(), cluster[v].end(), mt);
+      std::vector<int> present_from_u, present_from_v;
+      FOR(i, 0, u_num_choose)
+      present_from_u.emplace_back(cluster[u][i]);
+      FOR(i, 0, v_num_choose)
+      present_from_v.emplace_back(cluster[v][i]);
+      nl = u_num_choose;
+      nr = v_num_choose;
+      vl = present_from_u;
+      vr = present_from_v;
+      if (nl > 0 && nr > 0)
+      {
+        Comp validation_res = query(nl, nr, vl, vr, q, server, is_simulation);
+        if (res != validation_res)
+        {
+          continue;
+        }
+        if (q == Q)
+          break;
+      }
+
+      pre_cluster = cluster;
+      for (int present_item : present_from_u)
+      {
+        cluster[v].emplace_back(present_item);
+        FOR(i, 0, cluster[u].size())
+        if (cluster[u][i] == present_item)
+        {
+          cluster[u].erase(cluster[u].begin() + i);
+          break;
+        }
+      }
+      for (int present_item : present_from_v)
+      {
+        cluster[u].emplace_back(present_item);
+        FOR(i, 0, cluster[v].size())
+        if (cluster[v][i] == present_item)
+        {
+          cluster[v].erase(cluster[v].begin() + i);
+          break;
+        }
+      }
+      nl = cluster[u].size();
+      nr = cluster[v].size();
+      vl = cluster[u];
+      vr = cluster[v];
+      Comp nx_res = query(nl, nr, vl, vr, q, server, is_simulation);
+      if (nx_res == res || nx_res == Comp::EQUAL)
+      {
+        best_cluster = cluster;
+        if (!is_simulation)
+        {
+          FOR(d, 0, D)
+          for (int item_idx : best_cluster[d]) ans_tmp[item_idx] = d;
+          std::cout << "#c ";
+          FOR(i, 0, N)
+              std::cout << ans_tmp[i] << " \n"[i + 1 == N];
+        }
+      }
+      else
+      {
+        cluster = pre_cluster;
+      }
+    } // while(q < Q)
+
+    for (int d = 0; d < D; d++)
+    {
+      for (int idx : best_cluster[d])
+        ans[idx] = d;
+    }
     return ans;
   }
 
