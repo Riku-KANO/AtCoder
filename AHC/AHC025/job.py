@@ -4,6 +4,7 @@ import time
 import pathlib
 import argparse
 import re
+from collections import defaultdict
 import concurrent.futures
 
 def get_arg():
@@ -63,11 +64,18 @@ if __name__ == "__main__":
       concurrent.futures.wait(futures)
     
     total_score = 0
+    solver_cnt = defaultdict(int)
     for i in range(num_test):
       with open(f"{out_path}/{i:04d}debug.txt") as f:
-        result = re.findall(".*Score\s*:\s*([0-9]*)\s*", f.read())
+        text = f.read()
+        result = re.findall(".*Score\s*:\s*([0-9]*)\s*", text)
         score = int(result[0])
+        total_score += score
         print(f"[case {i:04d}]: score: {score:10d}")
-        total_score += int(result[0])
+        result = re.findall("best result is (solver[0-9]*)", text)
+        solver_cnt[result[0]] += 1
 
     print(f"total_score: {total_score}")
+
+    for k in sorted(solver_cnt.keys()):
+      print(f"{k}: {solver_cnt[k]}")
