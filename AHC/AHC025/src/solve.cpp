@@ -277,6 +277,9 @@ public:
     case 7:
       ans = solve7(this->server, false);
       break;
+    case 8:
+      ans = solve8(this->server, false);
+      break;
     default:
       std::cerr << "Invalid result\n";
       break;
@@ -729,7 +732,7 @@ private:
   int simulation(int num_simulation = 10)
   {
     assert(num_simulation > 0);
-    int num_solvers = 7;
+    int num_solvers = 8;
     std::vector<ll> scores(num_solvers, 0);
     for (int sid = 0; sid < num_simulation; sid++)
     {
@@ -772,6 +775,11 @@ private:
       ans = this->solve7(sim_server, true);
       ll score7 = sim_server.calc_score(ans);
       scores[6] += score7;
+
+      // solve8
+      ans = this->solve8(sim_server, true);
+      ll score8 = sim_server.calc_score(ans);
+      scores[7] += score8;
     }
 
     int best_solver = -1;
@@ -1812,6 +1820,7 @@ private:
           else
           { // other pattern
             int target;
+            int opponent = -1;
             if (large)
             {
               target = largest_index;
@@ -1822,6 +1831,7 @@ private:
             }
             try_exchange_one_sorted_item(
                 target,
+                opponent,
                 cluster,
                 best_cluster,
                 sorted_items,
@@ -1848,6 +1858,712 @@ private:
     FOR(d, 0, D)
     for (int item_idx : best_cluster[d])
       ans[item_idx] = d;
+
+    return ans;
+  }
+
+  /**
+   * @brief tolerate機能を追加
+   * 
+   * @param server 
+   * @param is_simulation 
+   */
+  std::vector<int> solve8(IOServer& server, bool is_simulation) {
+    std::vector<int> ans(N);
+    std::vector<std::vector<int>> cluster(D);
+    std::vector<std::vector<int>> best_cluster(D);
+    std::vector<std::vector<int>> pre_cluster;
+    std::vector<int> max_cluster, min_cluster;
+    std::set<int> fixed_cluster_indices;
+    int max_over_cluster_idx, min_over_cluster_idx;
+    int q = 0;
+    bool suspend = false;
+    enum class Status {
+      NORMAL,
+      MAX_OVER, 
+      MIN_OVER,
+    };
+    Status cur_status = Status::NORMAL;
+
+    // ansの適当な初期化
+    FOR(i, 0, N) ans[i] = i % D;
+
+    // merge sortとアイテムのインデックスのソート
+    std::vector<int> items(N);
+    std::iota(items.begin(), items.end(), 0);
+    std::vector<int> sorted_items = merge_sort(items, q, suspend, server, is_simulation);
+    std::vector<int> sorted_item_indices(N);
+    FOR(i, 0, N) sorted_item_indices[sorted_items[i]] = i;
+
+    FOR(d, 0, D)
+    {
+      for (int idx : initial_cluster[d])
+      {
+        cluster[d].push_back(sorted_items[idx]);
+      }
+    }
+
+    if(suspend) {
+      return ans;
+    } else {
+      best_cluster = cluster;
+      if(!is_simulation) {
+        output_for_vis(best_cluster);
+      }
+    }
+
+    while(q < Q) {
+      int num_tolerate = 10;
+      int largest_index;
+      int smallest_index;
+      int nl, nr;
+      std::vector<int> vl, vr;
+      if(!is_simulation) {
+        output_for_vis(best_cluster);
+      }
+      if(cur_status == Status::NORMAL) {
+        bool done = false;
+        bool target_is_large = (u32)mt() % 2 == 0;
+        int from, to;
+        if(target_is_large) {
+          find_largest(
+              largest_index,
+              suspend,
+              cluster,
+              fixed_cluster_indices,
+              q,
+              server,
+              is_simulation);
+          if(cluster[largest_index].size() == 1) {
+            fixed_cluster_indices.insert(largest_index);
+            continue;
+          }
+        } else {
+          find_smallest(
+              smallest_index,
+              suspend,
+              cluster,
+              fixed_cluster_indices,
+              q,
+              server,
+              is_simulation);
+        }
+
+        if(suspend) {
+          break;
+        }
+
+        int max_iter = 5;
+        std::vector<int> indices_D(D);
+        std::iota(indices_D.begin(), indices_D.end(), 0);
+
+        pre_cluster = cluster;
+
+        while(max_iter-- && !done) {
+          int pat = (u32)mt() % 50;
+          std::shuffle(indices_D.begin(), indices_D.end(), mt);
+          if(q == Q)
+          {
+            break;
+          }
+
+          if(pat == 0)
+          { // move random item to another cluster
+            int idx_tmp = -1;
+            int idx_tmp2 = -1;
+            if(target_is_large) {
+              idx_tmp = largest_index;
+            } else {
+              idx_tmp = smallest_index;
+            }
+            for(int idxD: indices_D) {
+              if(idxD == idx_tmp || fixed_cluster_indices.find(idxD) != fixed_cluster_indices.end()) {
+                continue;
+              }
+              if(!target_is_large && cluster[idxD].size() == 1) {
+                continue;
+              }
+              idx_tmp2 = idxD;
+              break;
+            }
+            if(idx_tmp == -1 || idx_tmp2 == -1) {
+              continue;
+            }
+
+            if(target_is_large) {
+              from = idx_tmp;
+              to = idx_tmp2;
+            } else {
+              from = idx_tmp2;
+              to = idx_tmp;
+            }
+
+            int idx = (u32)mt() % cluster[from].size();
+            int target_item = cluster[from][idx];
+            int target_item_idx = sorted_item_indices[target_item];
+            std::vector<int> to_indices;
+            for(int item_idx: cluster[to]) to_indices.emplace_back(sorted_item_indices[item_idx]);
+            cluster[from].erase(cluster[from].begin() + idx);
+            int pos = std::lower_bound(to_indices.begin(), to_indices.end(), target_item_idx) - to_indices.begin();
+            cluster[to].insert(cluster[to].begin() + pos, target_item);
+            if(target_is_large) {
+              vl = cluster[to];
+              vr = pre_cluster[from];
+              std::tie(vl, vr) = delete_intersection_set(vl, vr);
+              nl = vl.size(); nr = vr.size();
+              assert(nl > 0 && nr > 0);
+              Comp res = query(nl, nr, vl, vr, q, server, is_simulation);
+
+              if(res == Comp::LARGER) {
+                cur_status = Status::MAX_OVER;
+                max_cluster = pre_cluster[from];
+                max_over_cluster_idx = to;
+                done = true;
+                break;
+              }
+            } else {
+              vl = cluster[from];
+              vr = pre_cluster[to];
+              std::tie(vl, vr) = delete_intersection_set(vl, vr);
+              nl = vl.size(); nr = vr.size();
+              assert(nl > 0 && nr > 0);
+              Comp res = query(nl, nr, vl, vr, q, server, is_simulation);
+              if(res == Comp::LESS) {
+                cur_status = Status::MIN_OVER;
+                min_cluster = pre_cluster[to];
+                min_over_cluster_idx = from;
+                done = true;
+                break;
+              }
+            }
+            best_cluster = cluster;
+            done = true;
+          } 
+          else if(pat == 1)
+          { // exchange ramdom items
+            // >-- from to の設定 --<
+            int idx_tmp;
+            int idx_tmp2;
+            if(target_is_large) {
+              idx_tmp = largest_index;
+            } else {
+              idx_tmp = smallest_index;
+            }
+            idx_tmp2 = -1;
+            for(int idxD: indices_D) {
+              if(idxD == idx_tmp || fixed_cluster_indices.find(idxD) != fixed_cluster_indices.end()) {
+                continue;
+              }
+              idx_tmp2 = idxD;
+              break;
+            }
+            if(idx_tmp2 == -1) {
+              continue;
+            }
+
+            if(target_is_large) {
+              from = idx_tmp;
+              to = idx_tmp2;
+            } else {
+              from = idx_tmp2;
+              to = idx_tmp;
+            }
+            // >-- from toの設定終了 --<
+            int u = from;
+            int v = to;
+            int usize = cluster[from].size();
+            int vsize = cluster[to].size();
+            int uidx = (u32)mt() % usize;
+            int vidx = (u32)mt() % vsize;
+            int uitem = cluster[u][uidx];
+            int vitem = cluster[v][vidx];
+            int uitem_idx = sorted_item_indices[uitem];
+            int vitem_idx = sorted_item_indices[vitem];
+            std::vector<int> u_indices, v_indices;
+            cluster[u].erase(cluster[u].begin() + uidx);
+            cluster[v].erase(cluster[v].begin() + vidx);
+            for(int item_idx: cluster[from]) u_indices.emplace_back(sorted_item_indices[item_idx]);
+            for(int item_idx: cluster[to]) v_indices.emplace_back(sorted_item_indices[item_idx]);
+            auto uit = std::lower_bound(u_indices.begin(), u_indices.end(), vitem_idx);
+            auto vit = std::lower_bound(v_indices.begin(), v_indices.end(), uitem_idx);
+            u_indices.insert(uit, vitem_idx);
+            v_indices.insert(vit, uitem_idx);
+            std::vector<int> nx_u_cluster, nx_v_cluster;
+            for(int idx: u_indices) nx_u_cluster.emplace_back(sorted_items[idx]);
+            for(int idx: v_indices) nx_v_cluster.emplace_back(sorted_items[idx]);
+            cluster[from] = nx_u_cluster;
+            cluster[to] = nx_v_cluster;
+
+            if(target_is_large)
+            {
+              vl = cluster[from];
+              vr = pre_cluster[from];
+              std::tie(vl, vr) = delete_intersection_set(vl, vr);
+              nl = vl.size();
+              nr = vr.size();
+              if(nl > 0 && nr > 0) {
+                Comp res = query(nl, nr, vl, vr, q, server, is_simulation); 
+                if(res == Comp::LARGER) {
+                  cur_status = Status::MAX_OVER;
+                  max_cluster = pre_cluster[from];
+                  max_over_cluster_idx = from;
+                  done = true;
+                  break;
+                }
+              }
+              vl = cluster[to];
+              vr = pre_cluster[from];
+              std::tie(vl, vr) = delete_intersection_set(vl, vr);
+              nl = vl.size();
+              nr = vr.size();
+              if(nl > 0 && nr > 0) {
+                Comp res = query(nl, nr, vl, vr, q, server, is_simulation); 
+                if(res == Comp::LARGER) {
+                  cur_status = Status::MAX_OVER;
+                  max_cluster = pre_cluster[to];
+                  max_over_cluster_idx = to;
+                  done = true;
+                  break;
+                }
+              }
+
+            }
+            else
+            {// for smallest cluster
+              vl = cluster[from];
+              vr = pre_cluster[to]; // ref
+              std::tie(vl, vr) = delete_intersection_set(vl, vr);
+              nl = vl.size();
+              nr = vr.size();
+              if(nl > 0 && nr > 0) {
+                Comp res = query(nl, nr, vl, vr, q, server, is_simulation); 
+                if(res == Comp::LESS) {
+                  cur_status = Status::MIN_OVER;
+                  min_cluster = pre_cluster[from];
+                  min_over_cluster_idx = from;
+                  done = true;
+                  break;
+                }
+              }
+              vl = cluster[to];
+              vr = pre_cluster[to]; // ref
+              std::tie(vl, vr) = delete_intersection_set(vl, vr);
+              nl = vl.size();
+              nr = vr.size();
+              if(nl > 0 && nr > 0) {
+                Comp res = query(nl, nr, vl, vr, q, server, is_simulation); 
+                if(res == Comp::LESS) {
+                  cur_status = Status::MIN_OVER;
+                  min_cluster = pre_cluster[to];
+                  min_over_cluster_idx = to;
+                  done = true;
+                  break;
+                }
+              }
+            }
+
+            best_cluster = cluster;
+            done = true;
+            
+          }
+          else if(pat < 26) 
+          { // move valid item to another
+            if (target_is_large)
+            {
+              from = largest_index;
+              to = -1;
+              for (int idxD : indices_D)
+              {
+                if (idxD == from || fixed_cluster_indices.find(idxD) != fixed_cluster_indices.end())
+                {
+                  continue;
+                }
+                to = idxD;
+                break;
+              }
+            }
+            else
+            {
+              from = -1;
+              to = smallest_index;
+              for (int idxD : indices_D)
+              {
+                if (idxD == to || fixed_cluster_indices.find(idxD) != fixed_cluster_indices.end())
+                {
+                  continue;
+                }
+                if (cluster[idxD].size() == 1)
+                {
+                  continue;
+                }
+                from = idxD;
+                break;
+              }
+            }
+            if (from == -1 || to == -1)
+            {
+              continue;
+            }
+
+            int target_item = find_move_item_by_bs(from, to, suspend, cluster, q, server, is_simulation);
+            if (q == Q)
+            {
+              break;
+            }
+            if (target_item == -1)
+            {
+              continue;
+            }
+            pre_cluster = cluster;
+
+            auto it = std::find(cluster[from].begin(), cluster[from].end(), target_item);
+            cluster[from].erase(it);
+
+            int target_item_idx = sorted_item_indices[target_item];
+            std::vector<int> to_indices;
+            for (int item_idx : cluster[to]) {
+              to_indices.push_back(sorted_item_indices[item_idx]);
+            }
+            int pos = std::lower_bound(to_indices.begin(), to_indices.end(), target_item_idx) - to_indices.begin();
+            cluster[to].insert(cluster[to].begin() + pos, target_item);
+
+            best_cluster = cluster;
+            done = true;
+
+          } // move valid one item
+          else 
+          { // exchange valid one item
+            int target;
+            int opponent = -1;
+            if (target_is_large)
+            {
+              target = largest_index;
+            }
+            else
+            {
+              target = smallest_index;
+            }
+            bool success = false;
+            try_exchange_one_sorted_item(
+                target,
+                opponent,
+                cluster,
+                best_cluster,
+                sorted_items,
+                sorted_item_indices,
+                fixed_cluster_indices,
+                q,
+                server,
+                is_simulation,
+                target_is_large,
+                success);
+            if (success)
+            {
+              done = true;
+              best_cluster = cluster;
+            }
+
+          }
+        }
+
+      }
+      else if(cur_status == Status::MAX_OVER)
+      {
+        bool target_is_large = true;
+        int from = max_over_cluster_idx;
+        int to;
+        bool done = false;
+        std::vector<int> indices_D(D);
+        std::iota(indices_D.begin(), indices_D.end(), 0);
+        while(num_tolerate-- && !done) {
+          if(q == Q) {
+            break;
+          }
+          find_largest(
+            max_over_cluster_idx, 
+            suspend, 
+            cluster, 
+            fixed_cluster_indices, 
+            q, 
+            server, 
+            is_simulation);
+          if(suspend) {
+            break;
+          }
+          int pat = (u32)mt() % 10;
+          std::shuffle(indices_D.begin(), indices_D.end(), mt);
+
+          if(pat < 5) 
+          { // move valid item to another
+            from = max_over_cluster_idx;
+            to = -1;
+            for (int idxD : indices_D)
+            {
+              if (idxD == from || fixed_cluster_indices.find(idxD) != fixed_cluster_indices.end())
+              {
+                continue;
+              }
+              to = idxD;
+              break;
+            }
+            if (from == -1 || to == -1)
+            {
+              continue;
+            }
+
+            int target_item = find_move_item_by_bs(from, to, suspend, cluster, q, server, is_simulation);
+            if (q == Q)
+            {
+              break;
+            }
+            if (target_item == -1)
+            {
+              continue;
+            }
+            pre_cluster = cluster;
+
+            auto it = std::find(cluster[from].begin(), cluster[from].end(), target_item);
+            cluster[from].erase(it);
+
+            int target_item_idx = sorted_item_indices[target_item];
+            std::vector<int> to_indices;
+            for (int item_idx : cluster[to]) {
+              to_indices.push_back(sorted_item_indices[item_idx]);
+            }
+            int pos = std::lower_bound(to_indices.begin(), to_indices.end(), target_item_idx) - to_indices.begin();
+            cluster[to].insert(cluster[to].begin() + pos, target_item);
+
+            vl = cluster[from];
+            vr = max_cluster;  // ref
+            std::tie(vl, vr) = delete_intersection_set(vl, vr);
+            nl = vl.size();
+            nr = vr.size();
+            if(nl > 0 && nr > 0) {
+              Comp valid_res = query(nl, nr, vl, vr, q, server, is_simulation);
+              if(valid_res == Comp::LESS) {
+                best_cluster = cluster;
+                done = true;
+              }
+            }
+          } // move valid one item
+          else 
+          { // exchange valid one item
+            int target = max_over_cluster_idx;
+            int opponent = -1;
+            bool success = false;
+            try_exchange_one_sorted_item(
+                target,
+                opponent,
+                cluster,
+                best_cluster,
+                sorted_items,
+                sorted_item_indices,
+                fixed_cluster_indices,
+                q,
+                server,
+                is_simulation,
+                target_is_large,
+                success);
+
+            if(q == Q) {
+              break;
+            }
+
+            if(!success) {
+              continue;
+            }
+
+            bool res1 = true;
+            bool res2 = true;
+
+            vl = cluster[target];
+            vr = max_cluster; // ref
+            std::tie(vl, vr) = delete_intersection_set(vl, vr);
+            nl = vl.size();
+            nr = vr.size();
+            if(nl > 0 && nr > 0) {
+              Comp valid_res = query(nl, nr, vl, vr, q, server, is_simulation);
+              if(valid_res == Comp::LARGER) {
+                res1 = false;
+              }
+            }
+            vl = cluster[opponent];
+            vr = max_cluster; // ref
+            std::tie(vl, vr) = delete_intersection_set(vl, vr);
+            nl = vl.size();
+            nr = vr.size();
+            if(nl > 0 && nr > 0) {
+              Comp valid_res = query(nl, nr, vl, vr, q, server, is_simulation);
+              if(valid_res == Comp::LARGER) {
+                res2 = false;
+              }
+            }
+
+            if(res1 && res2) {
+              best_cluster = cluster;
+              done = true;
+            }
+          }
+
+          cur_status = Status::NORMAL;
+        } // while(num_tolerate--)
+
+        if(!done) {
+          cluster = best_cluster; // undo
+        }
+      }
+      else if(cur_status == Status::MIN_OVER)
+      {
+        int to = min_over_cluster_idx;
+        int from;
+        bool target_is_large = false;
+        bool done = false;
+        std::vector<int> indices_D(D);
+        std::iota(indices_D.begin(), indices_D.end(), 0);
+        while(num_tolerate-- && !done) {
+          if(q == Q) {
+            break;
+          }
+          find_smallest(
+            min_over_cluster_idx, 
+            suspend, 
+            cluster, 
+            fixed_cluster_indices, 
+            q, 
+            server, 
+            is_simulation);
+          if(suspend) {
+            break;
+          }
+
+          int pat = (u32)mt() % 10;
+          std::shuffle(indices_D.begin(), indices_D.end(), mt);
+
+          if(pat < 5) 
+          { // move valid item to another
+            to = min_over_cluster_idx;
+            from = to;
+            for (int idxD : indices_D)
+            {
+              if (idxD == to || fixed_cluster_indices.find(idxD) != fixed_cluster_indices.end())
+              {
+                continue;
+              }
+              if(cluster[idxD].size() == 1) {
+                continue;
+              }
+              from = idxD;
+              break;
+            }
+            if (from == -1 || to == -1)
+            {
+              continue;
+            }
+
+            int target_item = find_move_item_by_bs(from, to, suspend, cluster, q, server, is_simulation);
+            if (q == Q)
+            {
+              break;
+            }
+            if (target_item == -1)
+            {
+              continue;
+            }
+
+            auto it = std::find(cluster[from].begin(), cluster[from].end(), target_item);
+            cluster[from].erase(it);
+
+            int target_item_idx = sorted_item_indices[target_item];
+            std::vector<int> to_indices;
+            for (int item_idx : cluster[to]) {
+              to_indices.push_back(sorted_item_indices[item_idx]);
+            }
+            int pos = std::lower_bound(to_indices.begin(), to_indices.end(), target_item_idx) - to_indices.begin();
+            cluster[to].insert(cluster[to].begin() + pos, target_item);
+
+            vl = cluster[to];
+            vr = min_cluster;  // ref
+            std::tie(vl, vr) = delete_intersection_set(vl, vr);
+            nl = vl.size();
+            nr = vr.size();
+            if(nl > 0 && nr > 0) {
+              Comp valid_res = query(nl, nr, vl, vr, q, server, is_simulation);
+              if(valid_res == Comp::LARGER) {
+                best_cluster = cluster;
+                done = true;
+              }
+            }
+          } // move valid one item
+          else 
+          { // exchange valid one item
+            int target = min_over_cluster_idx;
+            int opponent = -1;
+            bool success = false;
+            try_exchange_one_sorted_item(
+                target,
+                opponent,
+                cluster,
+                best_cluster,
+                sorted_items,
+                sorted_item_indices,
+                fixed_cluster_indices,
+                q,
+                server,
+                is_simulation,
+                target_is_large,
+                success);
+
+            if(q == Q) {
+              break;
+            }
+
+            if(!success) {
+              continue;
+            }
+
+            bool res1 = true;
+            bool res2 = true;
+            vl = cluster[target];
+            vr = min_cluster; // ref
+            std::tie(vl, vr) = delete_intersection_set(vl, vr);
+            nl = vl.size();
+            nr = vr.size();
+            if(nl > 0 && nr > 0) {
+              Comp valid_res = query(nl, nr, vl, vr, q, server, is_simulation);
+              if(valid_res == Comp::LESS) {
+                res1 = false;
+              }
+            }
+            if(q == Q) {
+              break;
+            }
+            vl = cluster[opponent];
+            vr = min_cluster; // ref
+            std::tie(vl, vr) = delete_intersection_set(vl, vr);
+            nl = vl.size();
+            nr = vr.size();
+            if(nl > 0 && nr > 0) {
+              Comp valid_res = query(nl, nr, vl, vr, q, server, is_simulation);
+              if(valid_res == Comp::LESS) {
+                res2 = false;
+              }
+            }
+
+            if(res1 && res2) {
+              best_cluster = cluster;
+              done = true;
+            }
+          }
+        } // while()
+        if(!done) {
+          cluster = best_cluster; // undo
+        }
+        cur_status = Status::NORMAL;
+      }
+
+    }
+
+    FOR(d, 0, D) for(int item_idx: best_cluster[d]) ans[item_idx] = d;
 
     return ans;
   }
@@ -2003,6 +2719,7 @@ private:
 
   void try_exchange_one_sorted_item(
       int target_cluster_idx,
+      int& opponent_cluster_idx,
       std::vector<std::vector<int>> &cluster,
       std::vector<std::vector<int>> &best_cluster,
       const std::vector<int> &sorted_items,
@@ -2053,7 +2770,6 @@ private:
     {
       if (target_item_idx == 0)
       { // first index
-        std::cerr << "moved though exchange\n";
         int from = target_cluster_idx;
         int to = target_cluster_idx;
         while (to == target_cluster_idx)
@@ -2075,6 +2791,7 @@ private:
           cluster = pre_cluster;
           return;
         }
+        opponent_cluster_idx = to;
         done = true;
       }
       else
@@ -2113,6 +2830,7 @@ private:
             cluster = pre_cluster;
             return;
           }
+          opponent_cluster_idx = to_cluster_idx;
           done = true;
         }
       }
@@ -2161,6 +2879,7 @@ private:
             cluster = pre_cluster;
             return;
           }
+          opponent_cluster_idx = to_cluster_idx;
           done = true;
         }
       }
