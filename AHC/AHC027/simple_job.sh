@@ -1,1 +1,1 @@
-python3 job.py --num_test 100 --exe_file solve --out_path ./out/simple --job_worker 2
+python3 job.py --num_test 100 --exe_file sub1 --input_path ./in/normal --out_path ./out/simple --job_worker 2
