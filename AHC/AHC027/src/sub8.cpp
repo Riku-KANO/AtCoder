@@ -1,6 +1,3 @@
-#pragma GCC target("avx2")
-#pragma GCC optimize("O3")
-#pragma GCC optimize("unroll-loops")
 // includes
 #include <iostream>
 #include <sstream>
@@ -136,11 +133,12 @@ constexpr long long LINF = 1LL << 60;
 constexpr double EPS = 1e-6;
 const double PI = std::acos(-1);
 
+double TL = 1.90;
+
 constexpr int DI[4] = {0, 1, 0, -1};
 constexpr int DJ[4] = {1, 0, -1, 0};
 
 constexpr int MAX_N = 40;
-constexpr int MAX_OPERATION = 100000;
 // --------------------- global variables ----------------------
 std::random_device seedGen;
 std::mt19937 mt(seedGen());
@@ -148,12 +146,6 @@ std::uniform_int_distribution<> rand01(0, 1);
 std::uniform_real_distribution<> randReal(0, 1);
 clock_t startTime;
 
-struct Params
-{
-  double TL = 1.70;
-  int seed;
-  explicit Params() : seed(seedGen()) {}
-};
 // --------------------- functionss ----------------------
 inline bool is_out(int r, int c, int N)
 {
@@ -165,31 +157,31 @@ inline double getTime(clock_t startTime)
   return (double)(clock() - startTime) / CLOCKS_PER_SEC;
 }
 
-Params argParse(int argc, char *argv[])
+bool argParse(int argv, char *argc[])
 {
-  Params param;
-  for (int i = 0; i < argc; i++)
+  for (int i = 0; i < argv; i++)
   {
-    if (std::strcmp(argv[i], "--seed") == 0)
+    if (std::strcmp(argc[i], "--seed") == 0)
     {
-      if (i + 1 > argc)
+      if (i + 1 > argv)
       {
         LOG_ERROR("No arguments.");
+        return false;
       }
-      int _seed = std::stoi(argv[i + 1]);
-      param.seed = _seed;
+      int _seed = std::stoi(argc[i + 1]);
+      mt = std::mt19937(_seed);
     }
-    if (std::strcmp(argv[i], "--TL") == 0)
+    if (std::strcmp(argc[i], "--TL") == 0)
     {
-      if (i + 1 > argc)
+      if (i + 1 > argv)
       {
         LOG_ERROR("No arguments.");
       }
-      double _TL = std::stod(argv[i + 1]);
-      param.TL = _TL;
+      double _TL = std::stod(argc[i + 1]);
+      TL = _TL;
     }
   }
-  return param;
+  return true;
 }
 
 // --------------------- classes ----------------------
@@ -505,15 +497,12 @@ void TakahashikunCleanerNo2::init(std::shared_ptr<Field> _field)
 
 bool TakahashikunCleanerNo2::allVisited() const
 {
-  return this->visitCount == field->numCell;
+  return this->visitCount == field->N * field->N;
 }
 
 void TakahashikunCleanerNo2::setCurPos(int pos)
 {
-  this->visited[curPos] = false;
   this->curPos = pos;
-  this->visited[curPos] = true;
-  this->history = {pos};
 }
 
 /**
@@ -546,7 +535,7 @@ Commands TakahashikunCleanerNo2::findPath(bool excludeVisited = false) const
 
     for (int v : field->graph[u])
     {
-      long long timeStep = field->dist[from][v];
+      int timeStep = field->dist[from][v];
       long long value = -field->dirty[v] * pow((timeStep + curTurn - timeStamp[v].back()), 2);
       if (field->dist[from][v] == field->dist[from][u] + 1 && dp[v] > dp[u] + value)
       {
@@ -571,7 +560,7 @@ Commands TakahashikunCleanerNo2::findPath(bool excludeVisited = false) const
       continue;
     }
 
-    double avgValue = (double)(-dp[pos]) / field->dist[from][pos] * pow(0.999, (double)field->dist[from][pos]);
+    double avgValue = (double)(-dp[pos]) / field->dist[from][pos] * pow(0.99, (double)field->dist[from][pos]);
     if (avgValue > highest)
     {
       highest = avgValue;
@@ -1713,7 +1702,7 @@ inline int TakahashikunCleanerNo2::getRCIdx(int r, int c) const
 class App
 {
 public:
-  App(const Input &input, const Params &_params);
+  App(const Input &input);
   void init();
   void run();
   void test();
@@ -1721,18 +1710,14 @@ public:
   void summary() const;
 
 private:
-#ifdef LOCAL
-  int numLoop = 0;
-#endif
   const Input initialInput;
   TakahashikunCleanerNo2 takahashi;
   std::shared_ptr<Field> field; // bot の cleanerと共有する
-  Params params;
   Commands bestCommands;
   long long bestScore;
   std::mt19937 rng;
   long long calcScore() const;
-  long long calcScore(const Commands &commands, int startPos) const;
+  long long calcScore(const Commands &commands) const;
 };
 
 /**
@@ -1740,7 +1725,7 @@ private:
  *
  * @param input
  */
-App::App(const Input &input, const Params &_params) : initialInput(input), params(_params)
+App::App(const Input &input) : initialInput(input)
 {
   this->field = std::make_shared<Field>(input);
 }
@@ -1752,7 +1737,7 @@ App::App(const Input &input, const Params &_params) : initialInput(input), param
 void App::init()
 {
   this->takahashi.init(this->field);
-  this->rng = std::mt19937(params.seed);
+  this->rng = std::mt19937(seedGen());
   LOG_INFO("Application Initialization done at %6.4f s", getTime(startTime));
   LOG_INFO("Takahashi-kun is Ready!");
 }
@@ -1763,12 +1748,10 @@ void App::init()
  */
 void App::run()
 {
-  Commands commands1 = takahashi.findLargeCyclePath();
+  Commands commands1 = this->takahashi.findLargeCyclePath();
   Commands commands2;
   Commands commands;
-  commands2.reserve(MAX_OPERATION);
-  commands.reserve(MAX_OPERATION);
-  long long score1 = calcScore(commands1, 0);
+  long long score1 = this->calcScore(commands1);
   long long score2;
   bestScore = score1;
   bestCommands = commands1;
@@ -1780,42 +1763,32 @@ void App::run()
     if (field->dirty[cellID] > dirtiest)
     {
       dirtiest = field->dirty[cellID];
-      startPos = cellID;
+      int startPos = cellID;
     }
   }
-  takahashi.setCurPos(startPos);
+  this->takahashi.setCurPos(startPos);
 
-  while (getTime(startTime) < params.TL)
+  while (!takahashi.allVisited())
   {
-#ifdef LOCAL
-    numLoop++;
-#endif
-    commands = takahashi.findPath();
-    if (commands.size() + commands2.size() + field->dist[takahashi.curPos][startPos] >= MAX_OPERATION)
+    if ((u32)rng() % 10 == 0)
     {
-      break;
+      commands = this->takahashi.findPath(excludeVisited);
+    }
+    else
+    {
+      commands = this->takahashi.findPath();
     }
     commands2 += commands;
-    takahashi.execute(commands);
-    if (takahashi.allVisited())
-    {
-      Commands backCommands = takahashi.findPath(startPos, Mode::HIGH_VALUE);
-      long long score = calcScore(commands2 + backCommands, startPos);
-      if (score < bestScore)
-      {
-        bestScore = score;
-        bestCommands = takahashi.shiftCommands(commands2 + backCommands);
-      }
-    }
+    this->takahashi.execute(commands);
   }
-  commands = takahashi.findPath(startPos, Mode::HIGH_VALUE);
+  commands = this->takahashi.findPath(startPos, Mode::HIGH_VALUE);
   commands2 += commands;
-  score2 = this->calcScore(commands2, startPos);
+  score2 = this->calcScore(commands2);
   LOG_INFO("score1: %12lld, score2: %12lld", score1, score2);
 
   if (score2 < bestScore)
   {
-    bestCommands = takahashi.shiftCommands(commands2);
+    this->bestCommands = takahashi.shiftCommands(commands2);
     bestScore = score2;
   }
 }
@@ -1824,38 +1797,23 @@ void App::test()
 {
 }
 
-/**
- * @brief Optimized output
- *
- */
 void App::show() const
 {
-  int pos = 0;
-  Vec<char> buffer(1 << 17, '\0');
-  FILE *file(stdout);
-
-  for (Command ch : bestCommands)
-  {
-    buffer[pos++] = ch;
-  }
-  fwrite(&buffer[0], 1, pos, file);
-  pos = 0;
+  std::cout << bestCommands << "\n";
+  std::cout.flush();
 }
 
 void App::summary() const
 {
   fprintf(stderr, "\n########## SUMMARY #########\n");
-  fprintf(stderr, "Score       : %10lld pt\n", calcScore(bestCommands, 0));
+  fprintf(stderr, "Score       : %10lld pt\n", bestScore);
   fprintf(stderr, "Elapsed Time: %10.2f s\n", getTime(startTime));
-#ifdef LOCAL
-  fprintf(stderr, "Num search  : %10d\n", numLoop);
-#endif
   fprintf(stderr, "############################\n");
 }
 
 long long App::calcScore() const
 {
-  Vec<Vec<int>> timeStamp = takahashi.timeStamp;
+  Vec<Vec<int>> timeStamp = this->takahashi.timeStamp;
   int curTurn = this->takahashi.curTurn;
   int curPos = 0;
   int nxPos;
@@ -1872,7 +1830,7 @@ long long App::calcScore() const
   for (Command command : bestCommands)
   {
     totalS += curS;
-    nxPos = takahashi.getNextPosByCommand(curPos, command);
+    nxPos = this->takahashi.getNextPosByCommand(curPos, command);
     curTurn++;
     curS += deltaS;
     curS -= (long long)field->dirty[nxPos] * (curTurn - timeStamp[nxPos].back());
@@ -1883,18 +1841,18 @@ long long App::calcScore() const
   return std::round((double)totalS / length);
 }
 
-long long App::calcScore(const Commands &commands, int startPos = 0) const
+long long App::calcScore(const Commands &commands) const
 {
   Vec<Vec<int>> timeStamp(field->numCell);
   int curTurn = 0;
-  int curPos = startPos;
+  int curPos = 0;
   for (int cellID : field->cellIDs)
   {
     timeStamp[cellID] = {0};
   }
   for (Command command : commands)
   {
-    curPos = takahashi.getNextPosByCommand(curPos, command);
+    curPos = this->takahashi.getNextPosByCommand(curPos, command);
     curTurn++;
     timeStamp[curPos].emplace_back(curTurn);
   }
@@ -1913,7 +1871,7 @@ long long App::calcScore(const Commands &commands, int startPos = 0) const
   for (Command command : commands)
   {
     totalS += curS;
-    nxPos = takahashi.getNextPosByCommand(curPos, command);
+    nxPos = this->takahashi.getNextPosByCommand(curPos, command);
     curTurn++;
     curS += deltaS;
     curS -= (long long)field->dirty[nxPos] * (curTurn - timeStamp[nxPos].back());
@@ -1924,14 +1882,9 @@ long long App::calcScore(const Commands &commands, int startPos = 0) const
   return std::round((double)totalS / length);
 }
 
-int main(int argc, char *argv[])
+int main(int argv, char *argc[])
 {
   startTime = clock();
-  Params params;
-
-#ifdef LOCAL
-  params = argParse(argc, argv);
-#endif
 
   // I/O optimization
   std::ios::sync_with_stdio(false);
@@ -1944,13 +1897,14 @@ int main(int argc, char *argv[])
   Input input = Input::getInput();
 
   // Run Application
-  App app(input, params);
+  App app(input);
   app.init();
   app.run();
-  app.show();
+  // app.test();
 #ifdef LOCAL
   app.summary();
 #endif
+  app.show();
 
   return 0;
 }

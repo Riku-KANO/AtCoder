@@ -1,6 +1,3 @@
-#pragma GCC target("avx2")
-#pragma GCC optimize("O3")
-#pragma GCC optimize("unroll-loops")
 // includes
 #include <iostream>
 #include <sstream>
@@ -140,7 +137,6 @@ constexpr int DI[4] = {0, 1, 0, -1};
 constexpr int DJ[4] = {1, 0, -1, 0};
 
 constexpr int MAX_N = 40;
-constexpr int MAX_OPERATION = 100000;
 // --------------------- global variables ----------------------
 std::random_device seedGen;
 std::mt19937 mt(seedGen());
@@ -150,7 +146,7 @@ clock_t startTime;
 
 struct Params
 {
-  double TL = 1.70;
+  double TL = 1.90;
   int seed;
   explicit Params() : seed(seedGen()) {}
 };
@@ -510,9 +506,7 @@ bool TakahashikunCleanerNo2::allVisited() const
 
 void TakahashikunCleanerNo2::setCurPos(int pos)
 {
-  this->visited[curPos] = false;
   this->curPos = pos;
-  this->visited[curPos] = true;
   this->history = {pos};
 }
 
@@ -1721,9 +1715,6 @@ public:
   void summary() const;
 
 private:
-#ifdef LOCAL
-  int numLoop = 0;
-#endif
   const Input initialInput;
   TakahashikunCleanerNo2 takahashi;
   std::shared_ptr<Field> field; // bot の cleanerと共有する
@@ -1732,7 +1723,7 @@ private:
   long long bestScore;
   std::mt19937 rng;
   long long calcScore() const;
-  long long calcScore(const Commands &commands, int startPos) const;
+  long long calcScore(const Commands &commands) const;
 };
 
 /**
@@ -1766,9 +1757,7 @@ void App::run()
   Commands commands1 = takahashi.findLargeCyclePath();
   Commands commands2;
   Commands commands;
-  commands2.reserve(MAX_OPERATION);
-  commands.reserve(MAX_OPERATION);
-  long long score1 = calcScore(commands1, 0);
+  long long score1 = calcScore(commands1);
   long long score2;
   bestScore = score1;
   bestCommands = commands1;
@@ -1780,37 +1769,20 @@ void App::run()
     if (field->dirty[cellID] > dirtiest)
     {
       dirtiest = field->dirty[cellID];
-      startPos = cellID;
+      int startPos = cellID;
     }
   }
   takahashi.setCurPos(startPos);
 
-  while (getTime(startTime) < params.TL)
+  while (!takahashi.allVisited())
   {
-#ifdef LOCAL
-    numLoop++;
-#endif
     commands = takahashi.findPath();
-    if (commands.size() + commands2.size() + field->dist[takahashi.curPos][startPos] >= MAX_OPERATION)
-    {
-      break;
-    }
     commands2 += commands;
     takahashi.execute(commands);
-    if (takahashi.allVisited())
-    {
-      Commands backCommands = takahashi.findPath(startPos, Mode::HIGH_VALUE);
-      long long score = calcScore(commands2 + backCommands, startPos);
-      if (score < bestScore)
-      {
-        bestScore = score;
-        bestCommands = takahashi.shiftCommands(commands2 + backCommands);
-      }
-    }
   }
   commands = takahashi.findPath(startPos, Mode::HIGH_VALUE);
   commands2 += commands;
-  score2 = this->calcScore(commands2, startPos);
+  score2 = this->calcScore(commands2);
   LOG_INFO("score1: %12lld, score2: %12lld", score1, score2);
 
   if (score2 < bestScore)
@@ -1824,32 +1796,17 @@ void App::test()
 {
 }
 
-/**
- * @brief Optimized output
- *
- */
 void App::show() const
 {
-  int pos = 0;
-  Vec<char> buffer(1 << 17, '\0');
-  FILE *file(stdout);
-
-  for (Command ch : bestCommands)
-  {
-    buffer[pos++] = ch;
-  }
-  fwrite(&buffer[0], 1, pos, file);
-  pos = 0;
+  std::cout << bestCommands << "\n";
+  std::cout.flush();
 }
 
 void App::summary() const
 {
   fprintf(stderr, "\n########## SUMMARY #########\n");
-  fprintf(stderr, "Score       : %10lld pt\n", calcScore(bestCommands, 0));
+  fprintf(stderr, "Score       : %10lld pt\n", calcScore(bestCommands));
   fprintf(stderr, "Elapsed Time: %10.2f s\n", getTime(startTime));
-#ifdef LOCAL
-  fprintf(stderr, "Num search  : %10d\n", numLoop);
-#endif
   fprintf(stderr, "############################\n");
 }
 
@@ -1883,11 +1840,11 @@ long long App::calcScore() const
   return std::round((double)totalS / length);
 }
 
-long long App::calcScore(const Commands &commands, int startPos = 0) const
+long long App::calcScore(const Commands &commands) const
 {
   Vec<Vec<int>> timeStamp(field->numCell);
   int curTurn = 0;
-  int curPos = startPos;
+  int curPos = 0;
   for (int cellID : field->cellIDs)
   {
     timeStamp[cellID] = {0};
@@ -1947,10 +1904,10 @@ int main(int argc, char *argv[])
   App app(input, params);
   app.init();
   app.run();
-  app.show();
 #ifdef LOCAL
   app.summary();
 #endif
+  app.show();
 
   return 0;
 }
