@@ -1,12 +1,15 @@
-[INFO] Max distance:  95
-[INFO] Field Initialization done at 0.0781 s
-[INFO] Bot Initialization done at 0.0783 s
-[INFO] Application Initialization done at 0.0784 s
+Usage: ./bin/solve [--TL <time_limit>] [--seed <seed_value>] < [input_file] 1> [stdout_file] 2> [stderr_file]
+--TL   : Time limit (seconds). Float value. Default  1.70
+--seed : Seed value for random number generator. Unsigned int.
+[INFO] Max distance:  38
+[INFO] Field Initialization done at 0.0039 s
+[INFO] Bot Initialization done at 0.0040 s
+[INFO] Application Initialization done at 0.0040 s
 [INFO] Takahashi-kun is Ready!
-[INFO] score1:     36298087, score2:     28423516
+[INFO] score1:      2473002, score2:      1879142
 
 ########## SUMMARY #########
-Score       :   28423516 pt
-Elapsed Time:       1.82 s
-Num search  :       1561
+Score       :    1874736 pt
+Elapsed Time:       1.70 s
+Num search  :       3261
 ############################

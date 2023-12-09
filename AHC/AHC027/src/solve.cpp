@@ -1,3 +1,4 @@
+// パラメータ変更
 #pragma GCC target("avx2")
 #pragma GCC optimize("O3")
 #pragma GCC optimize("unroll-loops")
@@ -59,9 +60,10 @@ using u64 = uint64_t;
 using i16 = int16_t;
 using i32 = int16_t;
 using i64 = int16_t;
+using byte = unsigned char;
 
 typedef std::string Commands;
-typedef char Command;
+typedef unsigned char Command;
 
 // # 考察メモ
 //
@@ -136,6 +138,8 @@ constexpr long long LINF = 1LL << 60;
 constexpr double EPS = 1e-6;
 const double PI = std::acos(-1);
 
+constexpr double DEFAULT_TL = 1.70;
+
 constexpr int DI[4] = {0, 1, 0, -1};
 constexpr int DJ[4] = {1, 0, -1, 0};
 
@@ -150,8 +154,8 @@ clock_t startTime;
 
 struct Params
 {
-  double TL = 1.70;
-  int seed;
+  double TL = DEFAULT_TL;
+  unsigned int seed;
   explicit Params() : seed(seedGen()) {}
 };
 // --------------------- functionss ----------------------
@@ -457,17 +461,15 @@ public:
   Vec<bool> visited;
   TakahashikunCleanerNo2() {}
   void init(std::shared_ptr<Field> _field) override;
-  bool allVisited() const;
-  void setCurPos(int pos);
-  Commands findPath(bool excludeVisited) const;
-  Commands findPath(int to, Mode mode) const;
-  Commands findPathCustom() const;
-  Commands findTSPPath();
-  Commands findTreePath();
-  Commands findPathBySA();
-  Commands findLargeCyclePath();
   void execute(const Commands &commands) override;
   void revert(int turn);
+  inline bool allVisited() const;
+  void setCurPos(int pos);
+  std::pair<Commands, double> findPath(bool excludeVisited) const;
+  Commands findPath(int to, Mode mode) const;
+  Commands findPathCustom() const;
+  Vec<std::pair<Commands, double>> findPaths(int num);
+  Commands findLargeCyclePath();
   Commands generateCommandsFromHistory() const;
   Commands shiftCommands(const Commands &commands) const;
   inline int getNextPosByCommand(int cur, Command command) const;
@@ -477,12 +479,6 @@ private:
   std::mt19937 rng;
   Commands findPathByNotVisit(int to) const;
   Commands findPathByHighValue(int to) const;
-  void generateRandomDoubleBondSpanningTree(Vec<Vec<u16>> *graph);
-  void compressDoubleBondTree(Vec<Vec<u16>> *graph);
-  inline void processDoubleBond(int from, int to, Vec<Vec<u16>> *graph);
-  inline Commands generateCommandsFromDoubleBondSpanningTree(Vec<Vec<u16>> *graph);
-  inline Vec<u16> generateInitialSASolution();
-  inline Vec<u16> reconstructHistory(const Vec<u16> &cur);
   inline Command getAction(int cur, int nx) const;
   inline int _getNextPosByCommand(int cur, Command command) const;
   inline int getRCIdx(int r, int c) const;
@@ -503,7 +499,7 @@ void TakahashikunCleanerNo2::init(std::shared_ptr<Field> _field)
   LOG_INFO("Bot Initialization done at %6.4f s", getTime(startTime));
 }
 
-bool TakahashikunCleanerNo2::allVisited() const
+inline bool TakahashikunCleanerNo2::allVisited() const
 {
   return this->visitCount == field->numCell;
 }
@@ -522,7 +518,7 @@ void TakahashikunCleanerNo2::setCurPos(int pos)
  * @param excludeVisited 既に訪れているポジションを除外するかどうか。default: false
  * @return Commands
  */
-Commands TakahashikunCleanerNo2::findPath(bool excludeVisited = false) const
+std::pair<Commands, double> TakahashikunCleanerNo2::findPath(bool excludeVisited = false) const
 {
   Commands ret;
   int from = curPos;
@@ -530,14 +526,14 @@ Commands TakahashikunCleanerNo2::findPath(bool excludeVisited = false) const
   Vec<int> pre(field->numCell, -1);
   dp[from] = 0;
   pre[from] = from;
-  std::queue<std::pair<long long, int>> pq;
-  pq.push({0LL, from});
+  std::queue<std::pair<long long, int>> q;
+  q.push({0LL, from});
 
   // BFS search
-  while (!pq.empty())
+  while (!q.empty())
   {
-    auto [cost, u] = pq.front();
-    pq.pop();
+    auto [cost, u] = q.front();
+    q.pop();
 
     if (cost > dp[u])
     {
@@ -547,12 +543,12 @@ Commands TakahashikunCleanerNo2::findPath(bool excludeVisited = false) const
     for (int v : field->graph[u])
     {
       long long timeStep = field->dist[from][v];
-      long long value = -field->dirty[v] * pow((timeStep + curTurn - timeStamp[v].back()), 2);
+      long long value = -field->dirty[v] * pow((timeStep + curTurn - timeStamp[v].back()), 1.75);
       if (field->dist[from][v] == field->dist[from][u] + 1 && dp[v] > dp[u] + value)
       {
         dp[v] = dp[u] + value;
         pre[v] = u;
-        pq.push({dp[v], v});
+        q.push({dp[v], v});
       }
     }
   }
@@ -570,14 +566,21 @@ Commands TakahashikunCleanerNo2::findPath(bool excludeVisited = false) const
     {
       continue;
     }
-
-    double avgValue = (double)(-dp[pos]) / field->dist[from][pos] * pow(0.999, (double)field->dist[from][pos]);
+    double avgValue = (double)(-dp[pos]) / field->dist[from][pos] * pow(0.99, (double)field->dist[from][pos]);
     if (avgValue > highest)
     {
       highest = avgValue;
       to = pos;
     }
   }
+
+#ifdef DEBUG
+  if (to == -1)
+  {
+    LOG_ERROR("to value should be non -1 at Line %d", __LINE__);
+    std::exit(-1);
+  }
+#endif
 
   // Reconstruction
   int cur = to;
@@ -589,7 +592,7 @@ Commands TakahashikunCleanerNo2::findPath(bool excludeVisited = false) const
 
   std::reverse(ret.begin(), ret.end());
 
-  return ret;
+  return {ret, highest};
 }
 
 Commands TakahashikunCleanerNo2::findPath(int to, Mode mode) const
@@ -613,21 +616,22 @@ Commands TakahashikunCleanerNo2::findPath(int to, Mode mode) const
  */
 Commands TakahashikunCleanerNo2::findPathCustom() const
 {
-  typedef std::pair<double, int> pdi;
   Commands ret;
   int from = curPos;
-  Vec<double> dp(field->numCell, 1e9); // TODO: check whether 32 bit or 64 bit
+  Vec<long long> dp(field->numCell, LINF); // TODO: check whether 32 bit or 64 bit
   Vec<int> pre(field->numCell, -1);
+
+  
   dp[from] = 0;
   pre[from] = from;
-  std::priority_queue<pdi, Vec<pdi>, std::greater<pdi>> pq;
-  pq.push({0.0, from});
+  std::queue<std::pair<long long, int>> q;
+  q.push({0LL, from});
 
-  // dijkstra search
-  while (!pq.empty())
+  // BFS search
+  while (!q.empty())
   {
-    auto [cost, u] = pq.top();
-    pq.pop();
+    auto [cost, u] = q.front();
+    q.pop();
 
     if (cost > dp[u])
     {
@@ -636,13 +640,13 @@ Commands TakahashikunCleanerNo2::findPathCustom() const
 
     for (int v : field->graph[u])
     {
-      int timeStep = field->dist[from][v];
-      double value = -field->meanDistSum[v] * field->dirty[v] * (timeStep + curTurn - timeStamp[v].back());
+      long long timeStep = field->dist[from][v];
+      long long value = -field->dirty[v] * pow((timeStep + curTurn - timeStamp[v].back()), 1.75);
       if (field->dist[from][v] == field->dist[from][u] + 1 && dp[v] > dp[u] + value)
       {
         dp[v] = dp[u] + value;
         pre[v] = u;
-        pq.push({dp[v], v});
+        q.push({dp[v], v});
       }
     }
   }
@@ -656,14 +660,36 @@ Commands TakahashikunCleanerNo2::findPathCustom() const
     {
       continue;
     }
+    double avgValue = (double)(-dp[pos]) / field->dist[from][pos] * pow(0.99, (double)field->dist[from][pos]);
 
-    double avgValue = -dp[pos] / field->dist[from][pos];
+    double regret = 0;
+    int forwardTime = field->dist[from][pos];
+    int backTime;
+    for(int dist1cellID: field->cellsDist[from][1])
+    {
+      backTime = field->dist[pos][dist1cellID];
+      regret += (double)field->dirty[pos] * pow((double)forwardTime + backTime + curTurn - timeStamp[dist1cellID].back(), 2);
+    }
+    for(int dist2cellID: field->cellsDist[from][2])
+    {
+      backTime = field->dist[pos][dist2cellID];
+      regret += (double)field->dirty[pos] * pow((double)forwardTime + backTime + curTurn - timeStamp[dist2cellID].back(), 2);
+    }
+    avgValue -= regret;
     if (avgValue > highest)
     {
       highest = avgValue;
       to = pos;
     }
   }
+
+#ifdef DEBUG
+  if (to == -1)
+  {
+    LOG_ERROR("to value should be non -1 at Line %d", __LINE__);
+    std::exit(-1);
+  }
+#endif
 
   // Reconstruction
   int cur = to;
@@ -678,188 +704,72 @@ Commands TakahashikunCleanerNo2::findPathCustom() const
   return ret;
 }
 
-/**
- * @brief
- *
- * @return Commands
- */
-Commands TakahashikunCleanerNo2::findTSPPath()
+Vec<std::pair<Commands, double>> TakahashikunCleanerNo2::findPaths(int num) 
 {
-  Commands ret;
-  const int ORIGIN = 0;
-  Vec<Vec<u16>> spanningTree;
-  this->generateRandomDoubleBondSpanningTree(&spanningTree);
+  Vec<std::pair<Commands, double>> ret;
 
-  this->compressDoubleBondTree(&spanningTree);
-  int cur = ORIGIN;
+  int from = curPos;
+  Vec<long long> dp(field->numCell, LINF); // TODO: check whether 32 bit or 64 bit
+  Vec<int> pre(field->numCell, -1);
+  dp[from] = 0;
+  pre[from] = from;
+  std::queue<std::pair<long long, int>> q;
+  q.push({0LL, from});
 
-#ifdef DEBUG
-  LOG_INFO("Started tsp search");
-#endif
-  while (true)
+  // BFS search
+  while (!q.empty())
   {
-    int singleBondDir = -1;
-    int doubleBondDir = -1;
-    int nx = -1;
-    for (int nei : field->graph[cur])
+    auto [cost, u] = q.front();
+    q.pop();
+
+    if (cost > dp[u])
     {
-      int dir = field->getDirVal(cur, nei);
-      if (spanningTree[cur][dir] == 2)
+      continue;
+    }
+
+    for (int v : field->graph[u])
+    {
+      long long timeStep = field->dist[from][v];
+      long long value = -field->dirty[v] * pow((timeStep + curTurn - timeStamp[v].back()), 1.75);
+      if (field->dist[from][v] == field->dist[from][u] + 1 && dp[v] > dp[u] + value)
       {
-        doubleBondDir = dir;
-        nx = nei;
-        break;
-      }
-      else if (spanningTree[cur][dir] == 1)
-      {
-        singleBondDir = dir;
-        nx = nei;
+        dp[v] = dp[u] + value;
+        pre[v] = u;
+        q.push({dp[v], v});
       }
     }
-
-    // Not found
-    if (nx == -1)
-    {
-      break;
-    }
-
-    // when double bond exist
-    int dir;
-    int invDir;
-    if (doubleBondDir != -1)
-    {
-      dir = doubleBondDir;
-    }
-    else
-    {
-      dir = singleBondDir;
-    }
-    invDir = (dir + 2) % 4;
-    spanningTree[cur][dir]--;
-    spanningTree[nx][invDir]--;
-
-    ret += getAction(cur, nx);
-    cur = nx;
   }
 
-#ifdef DEBUG
-  LOG_INFO("Ended TSP search");
-#endif
+  // find best average value
+  Vec<std::pair<double, int>> pairList(field->numCell);
+  for (int pos : field->cellIDs)
+  {
+    if(pos == from)
+    {
+      pairList[pos] = {-1e18, pos};
+      continue;
+    }
+    pairList[pos] = {(double)-dp[pos] / field->dist[from][pos] * pow(0.99, field->dist[from][pos]), pos};
+  }
+
+  std::sort(pairList.rbegin(), pairList.rend());
+
+  for(int i = 0; i < std::min((int)pairList.size(), num); i++)
+  {
+    auto[value, to] = pairList[i];
+    int cur = to;
+    Commands commands;
+    while(cur != from)
+    {
+      commands.push_back(getAction(pre[cur], cur));
+      cur = pre[cur];
+    }
+    std::reverse(commands.begin(), commands.end());
+
+    ret.emplace_back(commands, value);
+    commands.clear();
+  }
   return ret;
-}
-
-/**
- * @brief
- *
- * @return Commands
- * @todo 次数のグラフから有向グラフの作成
- */
-Commands TakahashikunCleanerNo2::findTreePath()
-{
-  Commands ret;
-  const int ORIGIN = 0;
-  Vec<Vec<u16>> spanningTree;
-  this->generateRandomDoubleBondSpanningTree(&spanningTree);
-  return this->generateCommandsFromDoubleBondSpanningTree(&spanningTree);
-}
-
-Commands TakahashikunCleanerNo2::findPathBySA()
-{
-  Commands commands;
-  const double penalty = 1e9;
-  LOG_INFO("Started finding path by SA");
-  auto evalHistory = [&](const Vec<u16> &his) -> double
-  {
-    double ret = 0.0;
-    int size = his.size();
-    Vec<Vec<int>> ts(field->numCell);
-    for (int cellID : field->cellIDs)
-    {
-      ts[cellID].resize(1, 0);
-    }
-    int turn = 0;
-    for (int i = 0; i < size; i++)
-    {
-      int cellID = his[i];
-      ts[cellID].emplace_back(turn);
-      turn++;
-    }
-    int curPos = 0;
-    int nxPos;
-    int length = his.size();
-    turn = his.size() - 1;
-    long long deltaS = 0;
-    long long totalS = 0;
-    long long curS = 0;
-    for (int cellID : field->cellIDs)
-    {
-      curS += (long long)field->dirty[cellID] * (turn - ts[cellID].back());
-      deltaS += field->dirty[cellID];
-      if (ts[cellID].back() == 0)
-      {
-        ret += penalty;
-      }
-    }
-
-    for (int i = 1; i < size; i++)
-    {
-      totalS += curS;
-      nxPos = his[i];
-      turn++;
-      curS += deltaS;
-      curS -= (long long)field->dirty[nxPos] * (turn - ts[nxPos].back());
-      ts[nxPos].emplace_back(turn);
-      curPos = nxPos;
-    }
-    ret += (double)totalS / length;
-    return ret;
-  }; // evalHistory
-
-  Vec<u16> curHistory = this->generateInitialSASolution();
-  LOG_INFO("generated initial solution");
-  Vec<u16> bestHistory = curHistory;
-  double curScore = evalHistory(curHistory);
-  double bestScore = curScore;
-  LOG_INFO("Initial score: %12.2f", bestScore);
-
-  while (getTime(startTime) < 1.0)
-  {
-    Vec<u16> nxHistory = reconstructHistory(curHistory);
-    LOG_INFO("reconstruct done");
-    double nxScore = evalHistory(nxHistory);
-    LOG_INFO("calculation done");
-    if (nxScore < curScore)
-    {
-      curHistory = nxHistory;
-      curScore = nxScore;
-      if (nxScore < bestScore)
-      {
-        LOG_INFO("Best score is updated! %12.2f -> %12.2f", bestScore, nxScore);
-        bestHistory = nxHistory;
-        bestScore = nxScore;
-        Commands bestCommands;
-        int size = bestHistory.size();
-        for (int i = 0; i < size - 1; i++)
-        {
-          int from = bestHistory[i];
-          int to = bestHistory[i + 1];
-          bestCommands += getAction(from, to);
-        }
-        std::cout << bestCommands << "\n";
-      }
-    }
-  }
-
-  // generate commands from history
-  int size = bestHistory.size();
-  for (int i = 0; i < size - 1; i++)
-  {
-    int from = curHistory[i];
-    int to = curHistory[i + 1];
-    commands += getAction(from, to);
-  }
-
-  return commands;
 }
 
 Commands TakahashikunCleanerNo2::findLargeCyclePath()
@@ -1204,460 +1114,6 @@ Commands TakahashikunCleanerNo2::findPathByNotVisit(int to) const
   return ret;
 }
 
-void TakahashikunCleanerNo2::generateRandomDoubleBondSpanningTree(Vec<Vec<u16>> *graph)
-{
-#ifdef DEBUG
-  LOG_INFO("Started generating random double bond spanning tree");
-#endif
-  graph->resize(field->numCell, Vec<u16>(4, 0));
-  // int startPos = (u16)this->rng() % field->numCell;
-  int startPos = 0;
-  std::queue<int> q;
-  Vec<bool> visited(field->numCell, false);
-  q.push(startPos);
-  visited[startPos] = true;
-
-  int u;
-  while (!q.empty())
-  {
-    u = q.front();
-    q.pop();
-    for (int v : field->graph[u]) // TODO: randomize
-    {
-      if (visited[v])
-      {
-        continue;
-      }
-      int dir = field->getDirVal(u, v);
-      int invDir = (dir + 2) % 4;
-      q.push(v);
-      visited[v] = true;
-      graph->at(u)[dir] = 2;    // set double bond
-      graph->at(v)[invDir] = 2; // set double bond
-    }
-  }
-#ifdef DEBUG
-  LOG_INFO("Ended generating random double bond spanning tree");
-#endif
-}
-
-void TakahashikunCleanerNo2::compressDoubleBondTree(Vec<Vec<u16>> *graph)
-{
-  Vec<int> cellIDs(field->numCell);
-  std::iota(cellIDs.begin(), cellIDs.end(), 0);
-#ifdef DEBUG
-  int searchCount = 0;
-#endif
-  int iter = 1000;
-  while (iter--)
-  {
-#ifdef DEBUG
-    searchCount++;
-#endif
-    int from = (u32)rng() % field->numCell;
-    for (int nei : field->graph[from])
-    {
-      LOG_INFO("from: %4d, nei: %4d", from, nei);
-      int dir = field->getDirVal(from, nei);
-      if (graph->at(from)[dir] > 0)
-      {
-        continue;
-      }
-      this->processDoubleBond(from, nei, graph);
-    }
-  }
-
-#ifdef DEBUG
-  LOG_INFO("search count of compressing double bond: %d", searchCount);
-#endif
-}
-
-inline void TakahashikunCleanerNo2::processDoubleBond(int from, int to, Vec<Vec<u16>> *graph)
-{
-  Vec<int> dist(field->numCell, INF);
-  Vec<int> pre(field->numCell, -1);
-  std::queue<int> q;
-  dist[from] = 0;
-  pre[from] = from;
-  q.push(from);
-  while (!q.empty() && dist[to] == INF)
-  {
-    int u = q.front();
-    q.pop();
-    for (int v : field->graph[u])
-    {
-      int dir = field->getDirVal(u, v);
-      if (graph->at(u)[dir] == 0)
-      {
-        continue;
-      }
-      if (dist[v] > dist[u] + 1)
-      {
-        dist[v] = dist[u] + 1;
-        pre[v] = u;
-        q.push(v);
-      }
-    }
-  }
-#ifdef DEBUG
-  LOG_INFO("dist[from][to] = %d", dist[to]);
-#endif
-  if (dist[to] == INF)
-    return;
-  int doubleBond = 0;
-  int singleBond = 0;
-  int cur = to;
-
-  Vec<int> path = {to};
-  while (cur != from)
-  {
-
-    LOG_INFO("pre: %4d, cur: %4d", pre[cur], cur);
-    int dir = field->getDirVal(pre[cur], cur);
-    if (graph->at(pre[cur])[dir] == 1)
-    {
-      singleBond++;
-    }
-    else
-    {
-      doubleBond++;
-    }
-    cur = pre[cur];
-    path.emplace_back(cur);
-  }
-
-  if (doubleBond <= singleBond)
-  {
-    return;
-  }
-
-  // increment degree of edge between from and to
-  int dir = field->getDirVal(from, to);
-  int invDir = (dir + 2) % 4;
-  graph->at(from)[dir]++;
-  graph->at(to)[invDir]++;
-
-  // decrement degree of edges on path
-  int pathSize = path.size();
-  for (int i = 0; i < pathSize - 1; i++)
-  {
-    int u = path[i];
-    int v = path[i + 1];
-    LOG_INFO("u: %4d, v: %4d", u, v);
-    int dir = field->getDirVal(u, v);
-    int invDir = (dir + 2) % 4;
-    graph->at(u)[dir]--;
-    graph->at(v)[invDir]--;
-  }
-
-  // if the cell is isorated, connect it to neighbor
-  // exclude cells; 'from' and 'to'
-  for (int i = 1; i < pathSize; i++)
-  {
-    int cellID = path[i];
-    bool isIsorated = true;
-    for (int d = 0; d < 4; d++)
-    {
-      if (graph->at(cellID)[d] > 0)
-      {
-        isIsorated = false;
-        break;
-      }
-    }
-    if (!isIsorated)
-    {
-      continue;
-    }
-
-    int targetNei = -1;
-
-    for (int nei : field->graph[cellID])
-    {
-      bool isNeiIsorated = true;
-      for (int d = 0; d < 4; d++)
-      {
-        if (graph->at(nei)[d] > 0)
-        {
-          isNeiIsorated = false;
-          break;
-        }
-      }
-
-      if (!isNeiIsorated)
-      {
-        targetNei = nei;
-        break;
-      }
-    }
-
-#ifdef DEBUG
-    if (targetNei == -1)
-    {
-      LOG_ERROR("Not found target neighbor at Line %d", __LINE__);
-    }
-#endif
-
-    int dir = field->getDirVal(cellID, targetNei);
-    int invDir = (dir + 2) % 4;
-    graph->at(cellID)[dir] += 2;
-    graph->at(targetNei)[invDir] += 2;
-  }
-}
-
-inline Commands TakahashikunCleanerNo2::generateCommandsFromDoubleBondSpanningTree(Vec<Vec<u16>> *graph)
-{
-  Commands ret;
-  Vec<Vec<u16>> edgePair(field->numCell, Vec<u16>(4)); // + 字のセル、かつそれぞれの辺の次数が1の場合をチェックする。
-  for (int cellID : field->cellIDs)
-  {
-    int numSingleBond = 0;
-    for (int nei : field->graph[cellID])
-    {
-      int dir = field->getDirVal(cellID, nei);
-      if (graph->at(cellID)[dir] == 1)
-      {
-        numSingleBond++;
-      }
-    }
-    if (numSingleBond == 2)
-    {
-      for (int nei : field->graph[cellID])
-      {
-        int dir = field->getDirVal(cellID, nei);
-        if (graph->at(cellID)[dir] == 1)
-        {
-          edgePair[cellID][dir] = 0;
-        }
-      }
-    }
-
-    else if (numSingleBond == 4)
-    {
-      Vec<int> labels(field->numCell, -1);
-      std::queue<std::pair<int, int>> q; //(cellID, label)
-      bool done = false;
-      for (int nei : field->graph[cellID])
-      {
-        int dirLabel = field->getDirVal(cellID, nei);
-        q.push({nei, dirLabel});
-        labels[nei] = dirLabel;
-      }
-
-      while (!q.empty() && !done)
-      {
-        auto [u, label] = q.front();
-        q.pop();
-        for (int v : field->graph[u])
-        {
-          int dir = field->getDirVal(u, v);
-          if (graph->at(u)[dir] == 0 || graph->at(u)[dir] == 2)
-          {
-            continue;
-          }
-          if (v == cellID || labels[v] == label)
-          {
-            continue;
-          }
-
-          // if adjacent cell label is already filled by other label, search ends
-          if (labels[v] != -1)
-          {
-            edgePair[cellID][label] = 0;
-            edgePair[cellID][labels[v]] = 0;
-            for (int d = 0; d < 4; d++)
-            {
-              if (edgePair[cellID][d] == -1)
-              {
-                edgePair[cellID][d] = 1;
-              }
-            }
-            done = true;
-            break;
-          }
-          labels[v] = label;
-          q.push({v, label});
-        }
-      }
-    }
-  }
-
-  auto dfs = [&](auto dfs, int start, int pre) -> void
-  {
-    int numDoubleBond = 0;
-    int numSingleBond = 0;
-    int nx;
-    for (int nei : field->graph[start])
-    {
-      int dir = field->getDirVal(start, nei);
-      if (graph->at(start)[dir] == 1)
-      {
-        numSingleBond++;
-      }
-      else if (graph->at(start)[dir] == 2)
-      {
-        numDoubleBond++;
-      }
-    }
-
-    if (numSingleBond == 3)
-    { // ペアが二つある方向へ行く。
-      Vec<int> label0;
-      Vec<int> label1;
-      for (int nei : field->graph[start])
-      {
-        int dir = field->getDirVal(start, nei);
-        if (graph->at(start)[dir] == 1)
-        {
-          if (edgePair[start][dir] == 0)
-          {
-            label0.emplace_back(nei);
-          }
-          else
-          {
-            label1.emplace_back(nei);
-          }
-        }
-      }
-
-      if (label0.size() == 2)
-      {
-        nx = label0.front();
-      }
-      else
-      {
-        nx = label1.front();
-      }
-    }
-    else if (numDoubleBond > 0)
-    { // ダブルボンドがあればそこを優先。
-      for (int nei : field->graph[start])
-      {
-        int dir = field->getDirVal(start, nei);
-        if (graph->at(start)[dir] == 2)
-        {
-          nx = nei;
-          break;
-        }
-      }
-    }
-    else if (numSingleBond == 1)
-    {
-      for (int nei : field->graph[start])
-      {
-        int dir = field->getDirVal(start, nei);
-        if (graph->at(start)[dir] == 1)
-        {
-          nx = nei;
-          break;
-        }
-      }
-    }
-    else
-    {
-      return;
-    }
-
-    int dir = field->getDirVal(start, nx);
-    int invDir = (dir + 2) % 4;
-    graph->at(start)[dir]--;
-    graph->at(nx)[invDir]--;
-    ret += getAction(start, nx);
-    dfs(dfs, nx, start);
-  };
-
-  dfs(dfs, 0, -1);
-  return ret;
-}
-
-inline Vec<u16> TakahashikunCleanerNo2::generateInitialSASolution()
-{
-  Vec<u16> ret;
-
-  Commands commands = this->findLargeCyclePath();
-  u16 cur = 0;
-  ret.emplace_back(cur);
-  for (Command command : commands)
-  {
-    switch (command)
-    {
-    case 'R':
-      cur += 1;
-      break;
-    case 'L':
-      cur -= 1;
-      break;
-    case 'U':
-      cur -= field->N;
-      break;
-    case 'D':
-      cur += field->N;
-      break;
-    default:
-      break;
-    }
-    ret.emplace_back(cur);
-  }
-  return ret;
-}
-
-inline Vec<u16> TakahashikunCleanerNo2::reconstructHistory(const Vec<u16> &cur)
-{
-  Vec<u16> ret = cur;
-
-  int curSize = cur.size();
-  int length = (u32)rng() % 5 + 2;
-  int start = (u32)rng() % (curSize - length);
-  u16 startPos = ret[start];
-  u16 endPos = ret[start + length - 1];
-  ret.erase(ret.begin() + start, ret.begin() + start + length);
-  Vec<u16> path;
-  Vec<int> dist(field->numCell, INF);
-  Vec<int> pre(field->numCell, -1);
-  dist[start] = 0;
-  pre[start] = start;
-  auto dfs = [&](auto dfs, int s) -> void
-  {
-    if (dist[endPos] != INF)
-    {
-      return;
-    }
-    Vec<int> indices(field->graph[s].size());
-    std::iota(indices.begin(), indices.end(), 0);
-    std::shuffle(indices.begin(), indices.end(), rng);
-    for (int idx : indices)
-    {
-      int nei = field->graph[s][idx];
-      if (dist[nei] != INF)
-      {
-        continue;
-      }
-      dist[nei] = dist[s] + 1;
-      pre[nei] = s;
-      dfs(dfs, nei);
-    }
-  };
-
-  dfs(dfs, startPos);
-  LOG_INFO("DFS DONE");
-  LOG_INFO("start pos: %d, end pos: %d", startPos, endPos);
-  u16 pos = endPos;
-  path = {endPos};
-  while (pos != startPos)
-  {
-    pos = pre[pos];
-    path.emplace_back(pos);
-  }
-  for (int p : path)
-  {
-    std::cerr << p << " ";
-  }
-  std::cerr << "\n";
-  std::reverse(path.begin(), path.end());
-  ret.insert(ret.begin() + start, path.begin(), path.end());
-
-  return ret;
-}
-
 inline Command TakahashikunCleanerNo2::getAction(int cur, int nx) const
 {
   if (nx - cur == field->N)
@@ -1766,13 +1222,13 @@ void App::run()
   Commands commands1 = takahashi.findLargeCyclePath();
   Commands commands2;
   Commands commands;
+  Commands backCommands;
   commands2.reserve(MAX_OPERATION);
   commands.reserve(MAX_OPERATION);
   long long score1 = calcScore(commands1, 0);
-  long long score2;
+  long long score2 = LINF;
   bestScore = score1;
   bestCommands = commands1;
-  bool excludeVisited = true;
   int startPos = 0;
   int dirtiest = -1;
   for (int cellID : field->cellIDs)
@@ -1790,7 +1246,8 @@ void App::run()
 #ifdef LOCAL
     numLoop++;
 #endif
-    commands = takahashi.findPath();
+    commands.clear();
+    commands = takahashi.findPathCustom();
     if (commands.size() + commands2.size() + field->dist[takahashi.curPos][startPos] >= MAX_OPERATION)
     {
       break;
@@ -1799,15 +1256,21 @@ void App::run()
     takahashi.execute(commands);
     if (takahashi.allVisited())
     {
-      Commands backCommands = takahashi.findPath(startPos, Mode::HIGH_VALUE);
+      backCommands.clear();
+      backCommands = takahashi.findPath(startPos, Mode::HIGH_VALUE);
       long long score = calcScore(commands2 + backCommands, startPos);
       if (score < bestScore)
       {
         bestScore = score;
+        bestCommands.clear();
+        int preTurn = takahashi.curTurn;
+        takahashi.execute(backCommands);
         bestCommands = takahashi.shiftCommands(commands2 + backCommands);
+        takahashi.revert(preTurn);
       }
     }
   }
+  commands.clear();
   commands = takahashi.findPath(startPos, Mode::HIGH_VALUE);
   commands2 += commands;
   score2 = this->calcScore(commands2, startPos);
@@ -1815,6 +1278,7 @@ void App::run()
 
   if (score2 < bestScore)
   {
+    bestCommands.clear();
     bestCommands = takahashi.shiftCommands(commands2);
     bestScore = score2;
   }
@@ -1838,8 +1302,9 @@ void App::show() const
   {
     buffer[pos++] = ch;
   }
+  buffer[pos++] = '\n';
+  
   fwrite(&buffer[0], 1, pos, file);
-  pos = 0;
 }
 
 void App::summary() const
@@ -1885,13 +1350,9 @@ long long App::calcScore() const
 
 long long App::calcScore(const Commands &commands, int startPos = 0) const
 {
-  Vec<Vec<int>> timeStamp(field->numCell);
+  Vec<Vec<int>> timeStamp(field->numCell, {0});
   int curTurn = 0;
   int curPos = startPos;
-  for (int cellID : field->cellIDs)
-  {
-    timeStamp[cellID] = {0};
-  }
   for (Command command : commands)
   {
     curPos = takahashi.getNextPosByCommand(curPos, command);
@@ -1926,6 +1387,15 @@ long long App::calcScore(const Commands &commands, int startPos = 0) const
 
 int main(int argc, char *argv[])
 {
+#ifdef LOCAL
+  if (argc == 1)
+  {
+    fprintf(stderr, "Usage: %s [--TL <time_limit>] [--seed <seed_value>] < [input_file] 1> [stdout_file] 2> [stderr_file]\n", argv[0]);
+    fprintf(stderr, "--TL   : Time limit (seconds). Float value. Default %5.2f\n", DEFAULT_TL);
+    fprintf(stderr, "--seed : Seed value for random number generator. Unsigned int.\n");
+  }
+#endif
+
   startTime = clock();
   Params params;
 
@@ -1941,7 +1411,7 @@ int main(int argc, char *argv[])
   std::cout.rdbuf()->pubsetbuf(nullptr, 0);
 
   // Read input
-  Input input = Input::getInput();
+  Input&& input = Input::getInput();
 
   // Run Application
   App app(input, params);

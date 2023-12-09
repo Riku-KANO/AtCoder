@@ -3,7 +3,7 @@ import re
 import subprocess
 
 EXE_MAIN = "./bin/solve"
-REF = "out/sub9"
+REF = "out/sub16"
 INPUT_DIR="./in/normal"
 
 def run_command(command):

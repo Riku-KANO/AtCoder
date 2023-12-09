@@ -3,7 +3,7 @@ BIN_DIR := ./bin
 SRC_NAME := $(SRC_DIR)/solve.cpp
 EXE_NAME := $(BIN_DIR)/solve
 CXX := g++
-CXXFLAGS := -O2 -DLOCAL -DDEBUG -std=c++17
+CXXFLAGS := -O3 -DLOCAL -DDEBUG -std=c++17
 
 .PHONY: build clean
 

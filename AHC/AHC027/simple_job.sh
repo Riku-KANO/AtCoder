@@ -1,1 +1,1 @@
-python3 job.py --num_test 100 --exe_file sub9 --input_path ./in/normal --out_path ./out/sub9 --job_worker 2
+python3 job.py --num_test 100 --exe_file sub16 --input_path ./in/normal --out_path ./out/sub16 --job_worker 2
