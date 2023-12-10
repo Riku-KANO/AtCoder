@@ -1,5 +1,5 @@
-# AHC025
-解法: マージソートと最大値の最小化（最小値の最大化） 
+# AHC027
+解法: セル評価値にもとづいて動的計画法で最短パスを探索
 
-(ex) ↓ seed = 5
-![gif](images/vis_0005.gif)
+(ex) ↓ seed = 0(short version)
+![gif](images/seed0000.gif)

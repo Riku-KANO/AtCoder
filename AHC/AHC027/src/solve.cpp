@@ -1,6 +1,5 @@
-// パラメータ変更
 #pragma GCC target("avx2")
-#pragma GCC optimize("O3")
+#pragma GCC optimize("Ofast")
 #pragma GCC optimize("unroll-loops")
 // includes
 #include <iostream>
@@ -652,7 +651,7 @@ Commands TakahashikunCleanerNo2::findPathCustom() const
   }
 
   // find best average value
-  double highest = -1e9;
+  double highest = -1e18;
   int to = -1;
   for (int pos : field->cellIDs)
   {
@@ -660,22 +659,22 @@ Commands TakahashikunCleanerNo2::findPathCustom() const
     {
       continue;
     }
-    double avgValue = (double)(-dp[pos]) / field->dist[from][pos] * pow(0.99, (double)field->dist[from][pos]);
+    double avgValue = (double)(-dp[pos]) / field->dist[from][pos] * pow(0.985, (double)field->dist[from][pos]);
 
-    double regret = 0;
-    int forwardTime = field->dist[from][pos];
-    int backTime;
-    for(int dist1cellID: field->cellsDist[from][1])
-    {
-      backTime = field->dist[pos][dist1cellID];
-      regret += (double)field->dirty[pos] * pow((double)forwardTime + backTime + curTurn - timeStamp[dist1cellID].back(), 2);
-    }
-    for(int dist2cellID: field->cellsDist[from][2])
-    {
-      backTime = field->dist[pos][dist2cellID];
-      regret += (double)field->dirty[pos] * pow((double)forwardTime + backTime + curTurn - timeStamp[dist2cellID].back(), 2);
-    }
-    avgValue -= regret;
+    // double regret = 0;
+    // int forwardTime = field->dist[from][pos];
+    // int backTime;
+    // for(int dist1cellID: field->cellsDist[from][1])
+    // {
+    //   backTime = field->dist[pos][dist1cellID];
+    //   regret += (double)field->dirty[pos] * pow((double)forwardTime + backTime + curTurn - timeStamp[dist1cellID].back(), 2) / 4;
+    // }
+    // for(int dist2cellID: field->cellsDist[from][2])
+    // {
+    //   backTime = field->dist[pos][dist2cellID];
+    //   regret += (double)field->dirty[pos] * pow((double)forwardTime + backTime + curTurn - timeStamp[dist2cellID].back(), 2) / 8;
+    // }
+    // avgValue -= regret;
     if (avgValue > highest)
     {
       highest = avgValue;
@@ -1231,6 +1230,7 @@ void App::run()
   bestCommands = commands1;
   int startPos = 0;
   int dirtiest = -1;
+  const int LIMIT = 10;
   for (int cellID : field->cellIDs)
   {
     if (field->dirty[cellID] > dirtiest)
@@ -1252,8 +1252,9 @@ void App::run()
     {
       break;
     }
-    commands2 += commands;
+    commands = Commands(commands.begin(), commands.begin() + std::min(LIMIT, (int)commands.size()));
     takahashi.execute(commands);
+    commands2 += commands;
     if (takahashi.allVisited())
     {
       backCommands.clear();

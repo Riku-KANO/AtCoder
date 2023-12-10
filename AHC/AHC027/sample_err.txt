@@ -1,15 +1,15 @@
 Usage: ./bin/solve [--TL <time_limit>] [--seed <seed_value>] < [input_file] 1> [stdout_file] 2> [stderr_file]
 --TL   : Time limit (seconds). Float value. Default  1.70
 --seed : Seed value for random number generator. Unsigned int.
-[INFO] Max distance:  38
-[INFO] Field Initialization done at 0.0039 s
-[INFO] Bot Initialization done at 0.0040 s
-[INFO] Application Initialization done at 0.0040 s
+[INFO] Max distance:  61
+[INFO] Field Initialization done at 0.0130 s
+[INFO] Bot Initialization done at 0.0131 s
+[INFO] Application Initialization done at 0.0132 s
 [INFO] Takahashi-kun is Ready!
-[INFO] score1:      2473002, score2:      1879142
+[INFO] score1:     11796770, score2:      6505503
 
 ########## SUMMARY #########
-Score       :    1874736 pt
+Score       :    6497784 pt
 Elapsed Time:       1.70 s
-Num search  :       3261
+Num search  :       3934
 ############################
