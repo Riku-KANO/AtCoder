@@ -1,0 +1,1 @@
+python3 job.py --num_test 100 --exe_file sub18 --input_path ./in/normal --out_path ./out/sub18 --job_worker 2
