@@ -15,10 +15,12 @@
 #include <vector>
 #include <set>
 #include <queue>
+#include <algorithm>
 #include <thread>
 #include <memory>
 #include <utility>
 #include <random>
+#include <numeric>
 #include <chrono>
 #include <cmath>
 #include <cassert>
@@ -30,3 +32,6 @@
 #include <constant.hpp>
 
 // boost multiprecision
+// #include <boost/multiprecision>
+// #include <boost/multiprecision/cpp_dec_float.hpp>
+// using mp = boost::multiprecision;
