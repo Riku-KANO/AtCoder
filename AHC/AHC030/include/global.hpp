@@ -9,7 +9,9 @@
  */
 
 #include <iostream>
+#include <sstream>
 #include <fstream>
+#include <istream>
 #include <string>
 #include <array>
 #include <vector>
@@ -19,19 +21,22 @@
 #include <thread>
 #include <memory>
 #include <utility>
+#include <chrono>
 #include <random>
 #include <numeric>
-#include <chrono>
+#include <type_traits>
 #include <cmath>
 #include <cassert>
 #include <cstdio>
+#include <cstdint>
 #include <cstring>
 #include <cstdlib>
 
+// boost multiprecision
+#include <boost/multiprecision>
+#include <boost/multiprecision/cpp_dec_float.hpp>
+#include <boost/math/distributions/normal.hpp>
+namespace mp = boost::multiprecision;
+using FloatType = mp::number<mp::cpp_dec_float<50>>;
 #include <macro.hpp>
 #include <constant.hpp>
-
-// boost multiprecision
-// #include <boost/multiprecision>
-// #include <boost/multiprecision/cpp_dec_float.hpp>
-// using mp = boost::multiprecision;
