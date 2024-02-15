@@ -107,7 +107,7 @@ inline Output Solver::query(int turn)
     const int NUM_NEXT_GENERATION = 100;
     for (Specie &specie : species)
     {
-        specie.fitness = env.calc_fitness(specie);
+        specie.fitness = this->calc_fitness(specie);
     }
 
     std::sort(species.begin(), species.end(), [&species](const Specie &lhs, const Specie &rhs)
@@ -276,4 +276,27 @@ inline Specie Solver::mutate(const Specie &s)
     new_specie.hash = Specie::calc_hash(new_specie.points);
 
     return new_specie;
+}
+
+inline double Solver::calc_fitness(const Specie& specie)
+{
+    const int N = input.N;
+    const int M = input.M;
+    const double eps = input.eps;
+    const int NUM_CELL = N * N;
+    double fitness = 0.0;
+    Vec<int> count_v(NUM_CELL, 0);
+    for(int oid = 0; oid < M; oid++)
+    {
+        auto[imin, jmin] = specie.points[oid];
+        for(auto[i, j]: oils[oid])
+        {
+
+            count_v[get_index(imin + i, jmin + j, N)] += 1;
+        }
+    }
+
+
+
+    return fitness;
 }

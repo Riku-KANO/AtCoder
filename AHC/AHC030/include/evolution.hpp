@@ -44,11 +44,6 @@ struct Environment
         }
     }
 
-    double calc_fitness(const Specie& specie)
-    {
-        double fitness = 0.0;
-        
-    }
 };
 
 /**

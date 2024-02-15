@@ -61,4 +61,12 @@ private:
      * @return Specie 
      */
     Specie mutate(const Specie& s);
+
+    /**
+     * @brief 
+     * 
+     * @param specie 
+     * @return double 
+     */
+    double calc_fitness(const Specie& specie);
 };
