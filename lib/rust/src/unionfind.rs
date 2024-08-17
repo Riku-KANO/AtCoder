@@ -7,7 +7,7 @@ struct UnionFind<T> {
 }
 
 #[allow(dead_code)]
-impl UnionFind<i32> {
+impl UnionFind<T> {
     fn new(n: usize) -> Self {
         let par: Vec<i32> = vec![-1; n];
         return Self {n, par};
