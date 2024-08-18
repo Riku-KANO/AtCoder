@@ -2,3 +2,9 @@ AHC/*/tools
 AHC/*/in
 AHC/*/out
 AHC/*/analysis.ipynb
+AHC/*/src/sample
+AHC/*/src/sample.cpp
+AHC/*/src/sample.py
+AHC/*/bin
+/ac-library
+target/
